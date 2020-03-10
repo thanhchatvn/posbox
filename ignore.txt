@@ -1,0 +1,12 @@
+*.pyc
+*.DS_Store
+*.~lock
+*.~lock
+*.docx#
+*.docx#
+*.xls
+*.xlsx
+*.json
+*.zip
+*.idea
+*.idea/workspace.xml
