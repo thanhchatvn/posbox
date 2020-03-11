@@ -13,6 +13,7 @@ from hashlib import md5
 from PIL import Image
 from xml.etree import ElementTree as ET
 
+from odoo.tools import pycompat
 
 try:
     import jcconv
@@ -29,7 +30,7 @@ from .exceptions import *
 
 def utfstr(stuff):
     """ converts stuff to string and does without failing if stuff is a utf8 string """
-    if isinstance(stuff, str):
+    if isinstance(stuff,pycompat.string_types):
         return stuff
     else:
         return str(stuff)
@@ -749,7 +750,6 @@ class Escpos:
                     'cp860': TXT_ENC_PC860,
                     'cp863': TXT_ENC_PC863,
                     'cp865': TXT_ENC_PC865,
-                    'cp1251': TXT_ENC_WPC1251,    # win-1251 covers more cyrillic symbols than cp866
                     'cp866': TXT_ENC_PC866,
                     'cp862': TXT_ENC_PC862,
                     'cp720': TXT_ENC_PC720,
@@ -788,15 +788,10 @@ class Escpos:
                         else: 
                             raise ValueError()
                     else:
-                        # First 127 symbols are covered by cp437.
-                        # Extended range is covered by different encodings.
                         encoded = char.encode(encoding)
-                        if ord(encoded) <= 127:
-                            encoding = 'cp437'
                         break
 
-                except (UnicodeEncodeError, UnicodeWarning, TypeError, ValueError):
-                    #the encoding failed, select another one and retry
+                except ValueError: #the encoding failed, select another one and retry
                     if encoding in remaining:
                         del remaining[encoding]
                     if len(remaining) >= 1:
@@ -894,12 +889,7 @@ class Escpos:
 
 
     def cashdraw(self, pin):
-        """ Send pulse to kick the cash drawer
-
-        For some reason, with some printers (ex: Epson TM-m30), the cash drawer
-        only opens 50% of the time if you just send the pulse. But if you read
-        the status afterwards, it opens all the time.
-        """
+        """ Send pulse to kick the cash drawer """
         if pin == 2:
             self._raw(CD_KICK_2)
         elif pin == 5:
@@ -907,7 +897,6 @@ class Escpos:
         else:
             raise CashDrawerError()
 
-        self.get_printer_status()
 
     def hw(self, hw):
         """ Hardware operations """

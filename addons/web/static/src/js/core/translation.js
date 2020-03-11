@@ -13,8 +13,7 @@ var TranslationDataBase = Class.extend(/** @lends instance.TranslationDataBase# 
                         "time_format": '%H:%M:%S',
                         "grouping": [],
                         "decimal_point": ".",
-                        "thousands_sep": ",",
-                        "code": "en_US"};
+                        "thousands_sep": ","};
     },
     set_bundle: function(translation_bundle) {
         var self = this;
@@ -59,17 +58,14 @@ var TranslationDataBase = Class.extend(/** @lends instance.TranslationDataBase# 
         @param {Object} [lang] lang The language. If not specified it will default to the language
         of the current user.
         @param {string} [url='/web/webclient/translations']
-        @returns {Promise}
+        @returns {jQuery.Deferred}
     */
     load_translations: function(session, modules, lang, url) {
         var self = this;
-        var cacheId = session.cache_hashes && session.cache_hashes.translations;
-        url = url || '/web/webclient/translations';
-        url += '/' + (cacheId ? cacheId : Date.now());
-        return $.get(url, {
-            mods: modules ? modules.join(',') : null,
-            lang: lang || null,
-        }).then(function (trans) {
+        return session.rpc(url || '/web/webclient/translations', {
+            "mods": modules || null,
+            "lang": lang || null
+        }).done(function(trans) {
             self.set_bundle(trans);
         });
     }

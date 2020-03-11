@@ -40,10 +40,7 @@ var ModelFieldSelector = Widget.extend({
         "click li.o_field_selector_select_button": "_onLastFieldClick",
 
         // Handle a direct change in the debug input
-        "change input.o_field_selector_debug": "_onDebugInputChange",
-
-        // Handle a change in the search input
-        "keyup .o_field_selector_search > input": "_onSearchInputChange",
+        "change input": "_onInputChange",
 
         // Handle keyboard and mouse navigation to build the field chain
         "mouseover li.o_field_selector_item": "_onItemHover",
@@ -56,11 +53,7 @@ var ModelFieldSelector = Widget.extend({
      * @param {string} model - the model name (e.g. "res.partner")
      * @param {string[]} chain - list of the initial field chain parts
      * @param {Object} [options] - some key-value options
-     * @param {string} [options.order='string']
-     *                 an ordering key for displayed fields
      * @param {boolean} [options.readonly=true] - true if should be readonly
-     * @param {function} [options.filter]
-     *                 a function to filter the fetched fields
      * @param {Object} [options.filters]
      *                 some key-value options to filter the fetched fields
      * @param {boolean} [options.filters.searchable=true]
@@ -69,10 +62,8 @@ var ModelFieldSelector = Widget.extend({
      *                   the list of fields info to use when no relation has
      *                   been followed (null indicates the widget has to request
      *                   the fields itself)
-     * @param {boolean|function} [options.followRelations=true]
+     * @param {boolean} [options.followRelations=true]
      *                  true if can follow relation when building the chain
-     * @param {boolean} [options.showSearchInput=true]
-     *                  false to hide a search input to filter displayed fields
      * @param {boolean} [options.debugMode=false]
      *                  true if the widget is in debug mode, false otherwise
      */
@@ -82,24 +73,15 @@ var ModelFieldSelector = Widget.extend({
         this.model = model;
         this.chain = chain;
         this.options = _.extend({
-            order: 'string',
             readonly: true,
             filters: {},
             fields: null,
-            filter: function () {return true;},
             followRelations: true,
             debugMode: false,
-            showSearchInput: true,
         }, options || {});
         this.options.filters = _.extend({
             searchable: true,
         }, this.options.filters);
-
-        if (typeof this.options.followRelations !== 'function') {
-            this.options.followRelations = this.options.followRelations ?
-                function () {return true;} :
-                function () {return false;};
-        }
 
         this.pages = [];
         this.dirty = false;
@@ -107,28 +89,25 @@ var ModelFieldSelector = Widget.extend({
         if (!this.options.readonly) {
             _.extend(this.events, this.editionEvents);
         }
-
-        this.searchValue = '';
     },
     /**
      * @see Widget.willStart()
-     * @returns {Promise}
+     * @returns {Deferred}
      */
     willStart: function () {
-        return Promise.all([
+        return $.when(
             this._super.apply(this, arguments),
             this._prefill()
-        ]);
+        );
     },
     /**
      * @see Widget.start
-     * @returns {Promise}
+     * @returns {Deferred}
      */
     start: function () {
         this.$value = this.$(".o_field_selector_value");
         this.$popover = this.$(".o_field_selector_popover");
-        this.$input = this.$popover.find(".o_field_selector_popover_footer > input");
-        this.$searchInput = this.$popover.find(".o_field_selector_search > input");
+        this.$input = this.$popover.find("input");
         this.$valid = this.$(".o_field_selector_warning");
 
         this._render();
@@ -162,11 +141,11 @@ var ModelFieldSelector = Widget.extend({
      * Saves a new field chain (array) and re-render.
      *
      * @param {string[]} chain - the new field chain
-     * @returns {Promise} resolved once the re-rendering is finished
+     * @returns {Deferred} resolved once the re-rendering is finished
      */
     setChain: function (chain) {
         if (_.isEqual(chain, this.chain)) {
-            return Promise.resolve();
+            return $.when();
         }
 
         this.chain = chain;
@@ -188,9 +167,6 @@ var ModelFieldSelector = Widget.extend({
         this.dirty = true;
         this.chain = this.chain.slice(0, this.pages.length-1);
         this.chain.push(fieldName);
-
-        this.searchValue = '';
-        this.$searchInput.val('');
     },
     /**
      * Searches a field in the last page by its name.
@@ -216,7 +192,6 @@ var ModelFieldSelector = Widget.extend({
      *                     non-technical names
      */
     _getModelFieldsFromCache: function (model, filters) {
-        var self = this;
         var def = modelFieldsCache.cacheDefs[model];
         if (!def) {
             def = modelFieldsCache.cacheDefs[model] = this._rpc({
@@ -229,12 +204,12 @@ var ModelFieldSelector = Widget.extend({
                     context: this.getSession().user_context,
                 })
                 .then((function (fields) {
-                    modelFieldsCache.cache[model] = sortFields(fields, model, self.options.order);
+                    modelFieldsCache.cache[model] = sortFields(fields, model);
                 }).bind(this));
         }
         return def.then((function () {
             return _.filter(modelFieldsCache.cache[model], function (f) {
-                return (!filters.searchable || f.searchable) && self.options.filter(f);
+                return !filters.searchable || f.searchable;
             });
         }).bind(this));
     },
@@ -278,10 +253,11 @@ var ModelFieldSelector = Widget.extend({
         if (!this._isOpen) return;
 
         this._isOpen = false;
-        this.$popover.addClass('d-none');
+        this.$popover.addClass("hidden");
 
         if (this.dirty) {
             this.dirty = false;
+            this.pages = this.pages.slice(0, this.chain.length || 1);
             this.trigger_up("field_chain_changed", {chain: this.chain});
         }
     },
@@ -290,31 +266,26 @@ var ModelFieldSelector = Widget.extend({
      * chain.
      *
      * @private
-     * @returns {Promise} resolved once the whole field chain has been
+     * @returns {Deferred} resolved once the whole field chain has been
      *                     processed
      */
     _prefill: function () {
         this.pages = [];
         return this._pushPageData(this.model).then((function () {
             this._validate(true);
-            return (this.chain.length ? processChain.call(this, this.chain.slice().reverse()) : Promise.resolve());
+            return (this.chain.length ? processChain.call(this, this.chain.slice().reverse()) : $.when());
         }).bind(this));
 
         function processChain(chain) {
-            var fieldName = chain.pop();
-            var field = this._getLastPageField(fieldName);
+            var field = this._getLastPageField(chain.pop());
             if (field && field.relation && chain.length > 0) { // Fetch next chain node if any and possible
                 return this._pushPageData(field.relation).then(processChain.bind(this, chain));
             } else if (field && chain.length === 0) { // Last node fetched
-                return Promise.resolve();
-            } else if (!field && fieldName === "1") { // TRUE_LEAF
-                this._validate(true);
-            } else if (!field && fieldName === "0") { // FALSE_LEAF
-                this._validate(true);
+                return $.when();
             } else { // Wrong node chain
                 this._validate(false);
             }
-            return Promise.resolve();
+            return $.when();
         }
     },
     /**
@@ -323,12 +294,12 @@ var ModelFieldSelector = Widget.extend({
      *
      * @private
      * @param {string} model - the model name whose fields have to be fetched
-     * @returns {Promise} resolved once the fields have been added
+     * @returns {Deferred} resolved once the fields have been added
      */
     _pushPageData: function (model) {
         var def;
         if (this.model === model && this.options.fields) {
-            def = Promise.resolve(sortFields(this.options.fields, model, this.options.order));
+            def = $.when(sortFields(this.options.fields, model));
         } else {
             def = this._getModelFieldsFromCache(model, this.options.filters);
         }
@@ -354,7 +325,6 @@ var ModelFieldSelector = Widget.extend({
      * @private
      */
     _render: function () {
-
         // Render the chain value
         this.$value.html(core.qweb.render(this.template + ".value", {
             chain: this.chain,
@@ -362,7 +332,7 @@ var ModelFieldSelector = Widget.extend({
         }));
 
         // Toggle the warning message
-        this.$valid.toggleClass('d-none', !!this.isValid());
+        this.$valid.toggleClass("hidden", !!this.isValid());
 
         // Adapt the popover content
         var page = _.last(this.pages);
@@ -374,17 +344,8 @@ var ModelFieldSelector = Widget.extend({
             if (prevField) title = prevField.string;
         }
         this.$(".o_field_selector_popover_header .o_field_selector_title").text(title);
-
-        var lines = _.filter(page, this.options.filter);
-        if (this.searchValue) {
-            var matches = fuzzy.filter(this.searchValue, _.pluck(lines, 'string'));
-            lines = _.map(_.pluck(matches, 'index'), function (i) {
-                return lines[i];
-            });
-        }
-
         this.$(".o_field_selector_page").replaceWith(core.qweb.render(this.template + ".page", {
-            lines: lines,
+            lines: page,
             followRelations: this.options.followRelations,
             debug: this.options.debugMode,
         }));
@@ -415,7 +376,7 @@ var ModelFieldSelector = Widget.extend({
         if (this._isOpen) return;
 
         this._isOpen = true;
-        this.$popover.removeClass('d-none');
+        this.$popover.removeClass("hidden");
     },
     /**
      * Toggles the valid status of the widget and display the error message if
@@ -487,7 +448,7 @@ var ModelFieldSelector = Widget.extend({
     /**
      * Called when the debug input value is changed -> adapts the chain
      */
-    _onDebugInputChange: function () {
+    _onInputChange: function () {
         var userChainStr = this.$input.val();
         var userChain = userChainStr.split(".");
         if (!this.options.followRelations && userChain.length > 1) {
@@ -497,13 +458,6 @@ var ModelFieldSelector = Widget.extend({
         this.setChain(userChain).then((function () {
             this.trigger_up("field_chain_changed", {chain: this.chain});
         }).bind(this));
-    },
-    /**
-     * Called when the search input value is changed -> adapts the popover
-     */
-    _onSearchInputChange: function () {
-        this.searchValue = this.$searchInput.val();
-        this._render();
     },
     /**
      * Called when a popover field button item is hovered -> toggles its
@@ -524,7 +478,6 @@ var ModelFieldSelector = Widget.extend({
     _onKeydown: function (e) {
         if (!this.$popover.is(":visible")) return;
         var inputHasFocus = this.$input.is(":focus");
-        var searchInputHasFocus = this.$searchInput.is(":focus");
 
         switch (e.which) {
             case $.ui.keyCode.UP:
@@ -570,7 +523,7 @@ var ModelFieldSelector = Widget.extend({
                 this._hidePopover();
                 break;
             case $.ui.keyCode.ENTER:
-                if (inputHasFocus || searchInputHasFocus) break;
+                if (inputHasFocus) break;
                 e.preventDefault();
                 this._selectField(this._getLastPageField(this.$("li.o_field_selector_item.active").data("name")));
                 break;
@@ -591,18 +544,16 @@ return ModelFieldSelector;
  *                     contain additional keys "model" and "name" with the field
  *                     name)
  */
-function sortFields(fields, model, order) {
-    var array = _.chain(fields)
+function sortFields(fields, model) {
+    return _.chain(fields)
         .pairs()
-        .sortBy(function (p) { return p[1].string; });
-    if (order !== 'string') {
-        array = array.sortBy(function (p) {return p[1][order]; });
-    }
-    return array.map(function (p) {
+        .sortBy(function (p) { return p[1].string; })
+        .map(function (p) {
             return _.extend({
                 name: p[0],
                 model: model,
             }, p[1]);
-        }).value();
+        })
+        .value();
 }
 });

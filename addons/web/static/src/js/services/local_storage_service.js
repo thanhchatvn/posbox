@@ -1,19 +1,24 @@
 odoo.define('web.LocalStorageService', function (require) {
 'use strict';
 
-/**
- * This module defines a service to access the localStorage object.
- */
-
-var AbstractStorageService = require('web.AbstractStorageService');
-var core = require('web.core');
+var AbstractService = require('web.AbstractService');
 var localStorage = require('web.local_storage');
 
-var LocalStorageService = AbstractStorageService.extend({
-    storage: localStorage,
+var LocalStorageService = AbstractService.extend({
+    name: 'local_storage',
+    setItem: function(key, value) {
+        localStorage.setItem(key,value);
+    },
+    getItem: function(key) {
+        return localStorage.getItem(key);
+    },
+    removeItem: function(key) {
+        localStorage.removeItem(key);
+    },
+    clear: function() {
+        localStorage.clear();
+    }
 });
-
-core.serviceRegistry.add('local_storage', LocalStorageService);
 
 return LocalStorageService;
 

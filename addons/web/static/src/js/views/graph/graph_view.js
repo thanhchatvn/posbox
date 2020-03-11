@@ -16,76 +16,59 @@ var GraphRenderer = require('web.GraphRenderer');
 var _t = core._t;
 var _lt = core._lt;
 
-var controlPanelViewParameters = require('web.controlPanelViewParameters');
-var GROUPABLE_TYPES = controlPanelViewParameters.GROUPABLE_TYPES;
-
 var GraphView = AbstractView.extend({
     display_name: _lt('Graph'),
     icon: 'fa-bar-chart',
-    jsLibs: [
-        '/web/static/lib/Chart/Chart.js',
+    cssLibs: [
+        '/web/static/lib/nvd3/nv.d3.css'
     ],
-    config: _.extend({}, AbstractView.prototype.config, {
+    jsLibs: [
+        '/web/static/lib/nvd3/d3.v3.js',
+        '/web/static/lib/nvd3/nv.d3.js',
+        '/web/static/src/js/libs/nvd3.js'
+    ],
+    config: {
         Model: GraphModel,
         Controller: Controller,
         Renderer: GraphRenderer,
-    }),
-    viewType: 'graph',
-    searchMenuTypes: ['filter', 'groupBy', 'timeRange', 'favorite'],
-
+    },
     /**
      * @override
      */
-    init: function (viewInfo, params) {
+    init: function (viewInfo) {
         this._super.apply(this, arguments);
 
-        var self = this;
         var measure;
         var groupBys = [];
-        var measures = {__count__: {string: _t("Count"), type: "integer"}};
-        var groupableFields = {};
-        this.fields.__count__ = {string: _t("Count"), type: "integer"};
-
-        this.arch.children.forEach(function (field) {
-            var fieldName = field.attrs.name;
-            if (fieldName === "id") {
-                return;
-            }
-            var interval = field.attrs.interval;
-            if (interval) {
-                fieldName = fieldName + ':' + interval;
+        viewInfo.fields = _.defaults({__count__: {string: _t("Count"), type: "integer"}}, viewInfo.fields);
+        viewInfo.arch.children.forEach(function (field) {
+            var name = field.attrs.name;
+            if (field.attrs.interval) {
+                name += ':' + field.attrs.interval;
             }
             if (field.attrs.type === 'measure') {
-                measure = fieldName;
-                measures[fieldName] = self.fields[fieldName];
+                measure = name;
             } else {
-                groupBys.push(fieldName);
+                groupBys.push(name);
             }
         });
 
-        _.each(this.fields, function (field, name) {
+        var measures = {__count__: {string: _t("Count"), type: "integer"}};
+        _.each(viewInfo.fields, function (field, name) {
             if (name !== 'id' && field.store === true) {
-                if (_.contains(['integer', 'float', 'monetary'], field.type) ||
-                    _.contains(params.additionalMeasures, name)) {
-                        measures[name] = field;
-                }
-                if (_.contains(GROUPABLE_TYPES, field.type)) {
-                    groupableFields[name] = field;
+                if (field.type === 'integer' || field.type === 'float' || field.type === 'monetary') {
+                    measures[name] = field;
                 }
             }
         });
 
         this.controllerParams.measures = measures;
-        this.controllerParams.groupableFields = groupableFields;
-        this.rendererParams.fields = this.fields;
-        this.rendererParams.title = this.arch.attrs.title; // TODO: use attrs.string instead
+        this.rendererParams.stacked = viewInfo.arch.attrs.stacked !== "False";
 
-        this.loadParams.mode = this.arch.attrs.type || 'bar';
+        this.loadParams.mode = viewInfo.arch.attrs.type || 'bar';
         this.loadParams.measure = measure || '__count__';
-        this.loadParams.groupBys = groupBys;
-        this.loadParams.fields = this.fields;
-        this.loadParams.comparisonDomain = params.comparisonDomain;
-        this.loadParams.stacked = this.arch.attrs.stacked !== "False";
+        this.loadParams.groupBys = groupBys || [];
+        this.loadParams.fields = viewInfo.fields;
     },
 });
 

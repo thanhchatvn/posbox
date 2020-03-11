@@ -92,11 +92,8 @@ $.fn.extend({
      */
     odooBounce: function () {
         return this.each(function () {
-            var $el = $(this);
-            $el.addClass('o_catch_attention');
-            setTimeout(function () {
-                $el.removeClass('o_catch_attention');
-            }, 400);
+            $(this).css('box-sizing', 'content-box')
+                   .effect('bounce', {distance: 18, times: 5}, 250);
         });
     },
     /**

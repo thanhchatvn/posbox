@@ -3,9 +3,9 @@
 
 {
     'name': 'ESC/POS Hardware Driver',
-    'category': 'Sales/Point Of Sale',
+    'category': 'Point of Sale',
     'sequence': 6,
-    'website': 'https://www.odoo.com/page/point-of-sale-hardware',
+    'website': 'https://www.odoo.com/page/point-of-sale',
     'summary': 'Hardware Driver for ESC/POS Printers and Cashdrawers',
     'description': """
 ESC/POS Hardware Driver
@@ -18,7 +18,6 @@ that would need such functionality.
 """,
     'depends': ['hw_proxy'],
     'external_dependencies': {
-        'python' : ['pyusb','pyserial','qrcode'],
+        'python' : ['usb.core','serial','qrcode'],
     },
-    'installable': False,
 }

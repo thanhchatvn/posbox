@@ -1,4 +1,4 @@
-odoo.define('web.form_benchmarks', function (require) {
+odoo.define('web.list_benchmarks', function (require) {
 "use strict";
 
 var FormView = require('web.FormView');
@@ -38,6 +38,7 @@ QUnit.module('Form View', {
         this.run = function (assert, done, cb) {
             var data = this.data;
             var arch = this.arch;
+            var viewOptions = this.viewOptions;
             new Benchmark.Suite({})
                 .add('form', function () {
                     var list = createView({
@@ -75,16 +76,16 @@ QUnit.module('Form View', {
             this.data.foo.records[0].many2many.push(i);
         }
         this.arch =
-                '<form string="Partners">' +
-                    '<field name="many2many">' +
-                        '<tree editable="top" limit="250">' +
-                            '<field name="char"/>' +
-                            '<field name="many2many" widget="many2many_tags" attrs="{\'readonly\': [(\'char\', \'==\', \'toto\')]}"/>' +
-                        '</tree>' +
-                    '</field>' +
+                '<form string="Partners">'
+                    '<field name="many2many">'
+                        '<tree editable="top" limit="250">'
+                            '<field name="char"/>'
+                            '<field name="many2many" widget="many2many_tags" attrs="{\'readonly\': [(\'char\', \'==\', \'toto\')]}"/>'
+                        '</tree>'
+                    '</field>'
                 '</form>';
         this.run(assert, done, function (form) {
-            testUtils.form.clickEdit(form);
+            form.$buttons.find('.o_form_button_edit').click();
             form.$('.o_data_cell:first').click();
             form.$('input:first').val("tralala").trigger('input');
         });

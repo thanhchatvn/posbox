@@ -1,7 +1,7 @@
-odoo.define('web.RainbowMan_tests', function (require) {
+odoo.define('web.rainbow_man_tests', function (require) {
 "use strict";
 
-var RainbowMan = require('web.RainbowMan');
+var RainbowMan = require('web.rainbow_man');
 
 QUnit.module('widgets', {}, function () {
 
@@ -9,30 +9,28 @@ QUnit.module('RainbowMan', {
     beforeEach: function () {
         this.data = {
             message: 'Congrats!',
+            click_close: false
         };
     },
 }, function () {
 
     QUnit.test("rendering a rainbowman", function (assert) {
-        var done = assert.async();
         assert.expect(2);
 
         var $target = $("#qunit-fixture");
 
         // Create and display rainbowman
         var rainbowman = new RainbowMan(this.data);
-        rainbowman.appendTo($target).then(function () {
-            var $rainbow = rainbowman.$(".o_reward_rainbow");
-            assert.strictEqual($rainbow.length, 1,
-                "Should have displayed rainbow effect");
+        rainbowman.appendTo($target);
 
-            assert.ok(rainbowman.$('.o_reward_msg_content').html() === 'Congrats!',
-                "Card on the rainbowman should display 'Congrats!' message");
+        var $rainbow = rainbowman.$(".o_reward_rainbow");
+        assert.strictEqual($rainbow.length, 1,
+            "Should have displayed rainbow effect");
 
-            rainbowman.destroy();
-            done();
-        });
+        assert.ok(rainbowman.$('.o_reward_msg_content').html() === 'Congrats!',
+            "Card on the rainbowman should display 'Congrats!' message");
 
+        rainbowman.destroy();
     });
 });
 });

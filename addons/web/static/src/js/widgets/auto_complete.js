@@ -19,7 +19,7 @@ return Widget.extend({
     //      to obtain the current search string.
     init: function (parent, options) {
         this._super(parent);
-        this.$input = options.$input;
+        this.$input = parent.$el;
         this.source = options.source;
         this.select = options.select;
         this.get_search_string = options.get_search_string;
@@ -29,41 +29,33 @@ return Widget.extend({
         this.searching = true;
         this.search_string = '';
         this.current_search = null;
-        this._isInputComposing = false;
     },
     start: function () {
         var self = this;
-        this.$input.on('compositionend', function (ev) {
-            self._isInputComposing = false;
-        });
-        this.$input.on('compositionstart', function (ev) {
-            self._isInputComposing = true;
-        });
         this.$input.on('keyup', function (ev) {
-            if (ev.which === $.ui.keyCode.RIGHT && !self._isInputComposing) {
+            if (ev.which === $.ui.keyCode.RIGHT) {
                 self.searching = true;
                 ev.preventDefault();
                 return;
             }
-            if (ev.which === $.ui.keyCode.ENTER && !self._isInputComposing) {
+            if (ev.which === $.ui.keyCode.ENTER) {
                 if (self.search_string.length) {
                     self.select_item(ev);
                 }
                 return;
             }
-            self._updateSearch();
-        });
-        this.$input.on('input', function (ev) {
-            if (ev.originalEvent.inputType === 'insertCompositionText') {
-                // click inside keyboard IME suggestions menu
-                self._updateSearch();
+            var search_string = self.get_search_string();
+            if (self.search_string !== search_string) {
+                if (search_string.length) {
+                    self.search_string = search_string;
+                    self.initiate_search(search_string);
+                } else {
+                    self.close();
+                }
             }
         });
         this.$input.on('keypress', function (ev) {
-            if (ev.which > 31 && ev.which !== 127) {
-                // we filter control character out of the search string
-                self.search_string = self.search_string + String.fromCharCode(ev.which);
-            }
+            self.search_string = self.search_string + String.fromCharCode(ev.which);
             if (self.search_string.length) {
                 self.searching = true;
                 var search_string = self.search_string;
@@ -73,9 +65,6 @@ return Widget.extend({
             }
         });
         this.$input.on('keydown', function (ev) {
-            if (self._isInputComposing) {
-                return;
-            }
             switch (ev.which) {
                 case $.ui.keyCode.ENTER:
 
@@ -98,24 +87,14 @@ return Widget.extend({
                     ev.preventDefault();
                     break;
                 case $.ui.keyCode.RIGHT:
-                    if(self.$input[0].selectionStart < self.search_string.length) {
-                        ev.stopPropagation();
-                        return;
-                    }
                     self.searching = false;
                     var current = self.current_result;
                     if (current && current.expand && !current.expanded) {
                         self.expand();
                         self.searching = true;
-                        ev.stopPropagation();
                     }
                     ev.preventDefault();
                     break;
-                case $.ui.keyCode.LEFT:
-                     if(self.$input[0].selectionStart > 0) {
-                        ev.stopPropagation();
-                     }
-                     break;
                 case $.ui.keyCode.ESCAPE:
                     self.close();
                     self.searching = false;
@@ -148,22 +127,12 @@ return Widget.extend({
             var $item = self.make_list_item(result).appendTo($list);
             result.$el = $item;
         });
-        // IE9 doesn't support addEventListener with option { once: true }
-        this.el.onmousemove = function (ev) {
-            self.$('li').each(function (index, li) {
-                li.onmouseenter = self.focus_element.bind(self, $(li));
-            });
-            var targetFocus = ev.target.tagName === 'LI' ?
-                ev.target :
-                ev.target.closest('li');
-            self.focus_element($(targetFocus));
-            self.el.onmousemove = null;
-        };
         this.show();
     },
     make_list_item: function (result) {
         var self = this;
         var $li = $('<li>')
+            .hover(function () {self.focus_element($li);})
             .mousedown(function (ev) {
                 if (ev.button === 0) { // left button
                     self.select(ev, {item: {facet: result.facet}});
@@ -219,8 +188,10 @@ return Widget.extend({
         this.current_result = $li.data('result');
     },
     select_item: function (ev) {
-        this.select(ev, {item: {facet: this.current_result.facet}});
-        this.close();
+        if (this.current_result.facet) {
+            this.select(ev, {item: {facet: this.current_result.facet}});
+            this.close();
+        }
     },
     show: function () {
         this.$el.show();
@@ -244,25 +215,6 @@ return Widget.extend({
     },
     is_expandable: function () {
         return !!this.$('.o-selection-focus .o-expand').length;
-    },
-    is_expanded: function() {
-        return this.$el[0].style.display === "block";
-    },
-    /**
-     * Update search dropdown menu based on new input content.
-     *
-     * @private
-     */
-    _updateSearch: function () {
-        var search_string = this.get_search_string();
-        if (this.search_string !== search_string) {
-            if (search_string.length) {
-                this.search_string = search_string;
-                this.initiate_search(search_string);
-            } else {
-                this.close();
-            }
-        }
     },
 });
 });

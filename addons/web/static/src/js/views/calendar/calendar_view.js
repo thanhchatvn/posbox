@@ -6,7 +6,6 @@ var CalendarModel = require('web.CalendarModel');
 var CalendarController = require('web.CalendarController');
 var CalendarRenderer = require('web.CalendarRenderer');
 var core = require('web.core');
-var pyUtils = require('web.py_utils');
 var utils = require('web.utils');
 
 var _lt = core._lt;
@@ -24,21 +23,15 @@ var CalendarView = AbstractView.extend({
     icon: 'fa-calendar',
     jsLibs: ['/web/static/lib/fullcalendar/js/fullcalendar.js'],
     cssLibs: ['/web/static/lib/fullcalendar/css/fullcalendar.css'],
-    config: _.extend({}, AbstractView.prototype.config, {
+    config: {
         Model: CalendarModel,
         Controller: CalendarController,
         Renderer: CalendarRenderer,
-    }),
-    viewType: 'calendar',
-    searchMenuTypes: ['filter', 'favorite'],
-
-    /**
-     * @override
-     */
+    },
     init: function (viewInfo, params) {
         this._super.apply(this, arguments);
-        var arch = this.arch;
-        var fields = this.fields;
+        var arch = viewInfo.arch;
+        var fields = viewInfo.fields;
         var attrs = arch.attrs;
 
         if (!attrs.date_start) {
@@ -67,8 +60,7 @@ var CalendarView = AbstractView.extend({
             var fieldName = child.attrs.name;
             fieldNames.push(fieldName);
             if (!child.attrs.invisible) {
-                child.attrs.options = child.attrs.options ? pyUtils.py_eval(child.attrs.options) : {};
-                displayFields[fieldName] = {attrs: child.attrs};
+                displayFields[fieldName] = child.attrs;
 
                 if (params.sidebar === false) return; // if we have not sidebar, (eg: Dashboard), we don't use the filter "coworkers"
 
@@ -104,11 +96,15 @@ var CalendarView = AbstractView.extend({
                 'filters': [],
             };
             if (fields[fieldName].relation) {
-                if (['res.users', 'res.partner', 'hr.employee'].indexOf(fields[fieldName].relation) !== -1) {
-                    filters[fieldName].avatar_field = 'image_128';
+                if (['res.users', 'res.partner'].indexOf(fields[fieldName].relation) !== -1) {
+                    filters[fieldName].avatar_field = 'image_small';
                 }
                 filters[fieldName].avatar_model = fields[fieldName].relation;
             }
+        }
+
+        if (_.isEmpty(displayFields)) {
+            displayFields = fields.display_name ? {'display_name': {}} : [];
         }
 
         //if quick_add = False, we don't allow quick_add
@@ -123,22 +119,22 @@ var CalendarView = AbstractView.extend({
             attrs.form_view_id ? parseInt(attrs.form_view_id, 10) : false;
         if (!this.controllerParams.formViewId && params.action) {
             var formViewDescr = _.find(params.action.views, function (v) {
-                return v.type ===  'form';
+                return v[1] ===  'form';
             });
             if (formViewDescr) {
-                this.controllerParams.formViewId = formViewDescr.viewID;
+                this.controllerParams.formViewId = formViewDescr[0];
             }
         }
 
+        this.controllerParams.readonlyFormViewId = !attrs.readonly_form_view_id || !utils.toBoolElse(attrs.readonly_form_view_id, true) ? false : attrs.readonly_form_view_id;
         this.controllerParams.eventOpenPopup = utils.toBoolElse(attrs.event_open_popup || '', false);
         this.controllerParams.mapping = mapping;
         this.controllerParams.context = params.context || {};
         this.controllerParams.displayName = params.action && params.action.name;
 
         this.rendererParams.displayFields = displayFields;
+        this.rendererParams.eventTemplate = _.findWhere(arch.children, {'tag': 'templates'});
         this.rendererParams.model = viewInfo.model;
-        this.rendererParams.hideDate = utils.toBoolElse(attrs.hide_date || '', false);
-        this.rendererParams.hideTime = utils.toBoolElse(attrs.hide_time || '', false);
 
         this.loadParams.fieldNames = _.uniq(fieldNames);
         this.loadParams.mapping = mapping;
@@ -150,7 +146,7 @@ var CalendarView = AbstractView.extend({
         this.loadParams.fieldColor = attrs.color;
 
         this.loadParams.filters = filters;
-        this.loadParams.mode = (params.context && params.context.default_mode) || attrs.mode;
+        this.loadParams.mode = attrs.mode;
         this.loadParams.initialDate = moment(params.initialDate || new Date());
     },
 });

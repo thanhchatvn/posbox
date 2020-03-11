@@ -18,11 +18,11 @@ _logger = logging.getLogger(__name__)
 # Those are the builtin raspberry pi USB modules, they should
 # not appear in the list of connected devices.
 BANNED_DEVICES = {
-    # "0424:9514",    # Standard Microsystem Corp. Builtin Ethernet module
-    # "1d6b:0002",    # Linux Foundation 2.0 root hub
-    # "0424:ec00",    # Standard Microsystem Corp. Other Builtin Ethernet module
-    # "0424:2514",    # Standard Microsystems Corp. USB 2.0 Hub (rpi3b+)
-    # "0424:7800",    # Standard Microsystems Corp. (rpi3b+)
+    "0424:9514",    # Standard Microsystem Corp. Builtin Ethernet module
+    "1d6b:0002",    # Linux Foundation 2.0 root hub
+    "0424:ec00",    # Standard Microsystem Corp. Other Builtin Ethernet module
+    "0424:2514",    # Standard Microsystems Corp. USB 2.0 Hub (rpi3b+)
+    "0424:7800",    # Standard Microsystems Corp. (rpi3b+)
 }
 
 
@@ -57,7 +57,7 @@ class Proxy(http.Controller):
 <!DOCTYPE HTML>
 <html>
     <head>
-        <title>Odoo's IoTBox</title>
+        <title>Odoo's PosBox</title>
         <style>
         body {
             width: 480px;
@@ -98,10 +98,10 @@ class Proxy(http.Controller):
             resp += "</ul>\n"
         resp += """
             <h2>Connected Devices</h2>
-            <p>The list of connected USB devices as seen by the IoTBox</p>
+            <p>The list of connected USB devices as seen by the posbox</p>
         """
         if debug is None:
-            resp += """(<a href="/hw_proxy/status?debug=1">debug version</a>)"""
+            resp += """(<a href="/hw_proxy/status?debug">debug version</a>)"""
         devices = subprocess.check_output("lsusb").decode('utf-8').split('\n')
         count   = 0
         resp += "<div class='devices'>\n"
@@ -127,7 +127,7 @@ class Proxy(http.Controller):
                 %s
                 </pre>
 
-            """ % subprocess.check_output(['lsusb', '-v']).decode('utf-8')
+            """ % subprocess.check_output('lsusb -v', shell=True).decode('utf-8')
 
         return request.make_response(resp,{
             'Cache-Control': 'no-cache',
@@ -208,6 +208,17 @@ class Proxy(http.Controller):
     @http.route('/hw_proxy/print_receipt', type='json', auth='none', cors='*')
     def print_receipt(self, receipt):
         print('print_receipt %s', receipt)
+
+    @http.route('/hw_proxy/is_scanner_connected', type='json', auth='none', cors='*')
+    def is_scanner_connected(self, receipt):
+        print('is_scanner_connected?')
+        return False
+
+    @http.route('/hw_proxy/scanner', type='json', auth='none', cors='*')
+    def scanner(self, receipt):
+        print('scanner')
+        time.sleep(10)
+        return ''
 
     @http.route('/hw_proxy/log', type='json', auth='none', cors='*')
     def log(self, arguments):

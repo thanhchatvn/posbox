@@ -7,34 +7,34 @@ odoo.define('web.AbstractRenderer', function (require) {
  *
  */
 
-var mvc = require('web.mvc');
+var Widget = require('web.Widget');
 
 /**
  * @class AbstractRenderer
  */
-return mvc.Renderer.extend({
+return Widget.extend({
     /**
-     * @override
+     * @constructor
+     * @param {Widget} parent
+     * @param {any} state
+     * @param {Object} params
      * @param {string} [params.noContentHelp]
      */
     init: function (parent, state, params) {
-        this._super.apply(this, arguments);
+        this._super(parent);
+        this.state = state;
         this.arch = params.arch;
         this.noContentHelp = params.noContentHelp;
-        this.withSearchPanel = params.withSearchPanel;
     },
     /**
-     * The rendering is asynchronous. The start
+     * The rendering can be asynchronous (but it is not encouraged). The start
      * method simply makes sure that we render the view.
      *
-     * @returns {Promise}
+     * @returns {Deferred}
      */
     start: function () {
         this.$el.addClass(this.arch.attrs.class);
-        if (this.withSearchPanel) {
-            this.$el.addClass('o_renderer_with_searchpanel');
-        }
-        return Promise.all([this._render(), this._super()]);
+        return $.when(this._render(), this._super());
     },
     /**
      * Called each time the renderer is attached into the DOM.
@@ -67,11 +67,6 @@ return mvc.Renderer.extend({
     getLocalState: function () {
     },
     /**
-     * Order to focus to be given to the content of the current view
-     */
-    giveFocus: function () {
-    },
-    /**
      * This is the reverse operation from getLocalState.  With this method, we
      * expect the renderer to restore all DOM state, if it is relevant.
      *
@@ -90,11 +85,11 @@ return mvc.Renderer.extend({
      * @param {Object} params
      * @param {boolean} [params.noRender=false]
      *        if true, the method only updates the state without rerendering
-     * @returns {Promise}
+     * @returns {Deferred}
      */
     updateState: function (state, params) {
         this.state = state;
-        return params.noRender ? Promise.resolve() : this._render();
+        return params.noRender ? $.when() : this._render();
     },
 
     //--------------------------------------------------------------------------
@@ -106,10 +101,10 @@ return mvc.Renderer.extend({
      *
      * @abstract
      * @private
-     * @returns {Promise}
+     * @returns {Deferred}
      */
     _render: function () {
-        return Promise.resolve();
+        return $.when();
     },
 });
 

@@ -7,7 +7,7 @@ var concurrency = require('web.concurrency');
 var mixins = require('web.mixins');
 var session = require('web.session');
 var translation = require('web.translation');
-var pyUtils = require('web.py_utils');
+var pyeval = require('web.pyeval');
 
 var _t = translation._t;
 
@@ -85,9 +85,9 @@ var Query = Class.extend({
         return session.rpc('/web/dataset/search_read', {
             model: this._model.name,
             fields: this._fields || false,
-            domain: pyUtils.eval('domains',
+            domain: pyeval.eval('domains',
                     [this._model.domain(this._filter)]),
-            context: pyUtils.eval('contexts',
+            context: pyeval.eval('contexts',
                     [this._model.context(this._context)]),
             offset: this._offset,
             limit: this._limit,
@@ -101,7 +101,7 @@ var Query = Class.extend({
      * Fetches the first record matching the query, or null
      *
      * @param {Object} [options] additional options for the rpc() method
-     * @returns {Promise<Object|null>}
+     * @returns {jQuery.Deferred<Object|null>}
      */
     first: function (options) {
         var self = this;
@@ -115,7 +115,7 @@ var Query = Class.extend({
      * Fetches all records matching the query
      *
      * @param {Object} [options] additional options for the rpc() method
-     * @returns {Promise<Array<>>}
+     * @returns {jQuery.Deferred<Array<>>}
      */
     all: function (options) {
         return this._execute(options);
@@ -123,10 +123,10 @@ var Query = Class.extend({
     /**
      * Fetches the number of records matching the query in the database
      *
-     * @returns {Promise<Number>}
+     * @returns {jQuery.Deferred<Number>}
      */
     count: function () {
-        if (this._count !== undefined) { return Promise.resolve(this._count); }
+        if (this._count !== undefined) { return $.when(this._count); }
         return this._model.call(
             'search_count', [this._filter], {
                 context: this._model.context(this._context)});
@@ -138,7 +138,7 @@ var Query = Class.extend({
      * @returns {jQuery.Deferred<Array<openerp.web.QueryGroup>> | null}
      */
     group_by: function (grouping) {
-        var ctx = pyUtils.eval(
+        var ctx = pyeval.eval(
             'context', this._model.context(this._context));
 
         // undefined passed in explicitly (!)
@@ -367,12 +367,11 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * @param {Array} ids identifiers of the records to read
      * @param {Array} [fields] fields to read and return, by default all fields are returned
      * @param {Object} [options]
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     read_ids: function (ids, fields, options) {
-        if (_.isEmpty(ids)) {
-            return Promise.resolve([]);
-        }
+        if (_.isEmpty(ids))
+            return $.Deferred().resolve([]);
 
         options = options || {};
         var method = 'read';
@@ -406,7 +405,7 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * @params {Object} [options]
      * @param {Number} [options.offset=0] The index from which selected records should be returned
      * @param {Number} [options.limit=null] The maximum number of records to return
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     read_slice: function (fields, options) {
         var self = this;
@@ -415,23 +414,21 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
                 .limit(options.limit || false)
                 .offset(options.offset || 0)
                 .all();
-        var prom = this.orderer.add(query);
-        prom.then(function (records) {
+        return this.orderer.add(query).done(function (records) {
             self.ids = _(records).pluck('id');
         });
-        return prom;
     },
     /**
      * Reads the current dataset record (from its index)
      *
      * @params {Array} [fields] fields to read and return, by default all fields are returned
      * @param {Object} [options.context] context data to add to the request payload, on top of the DataSet's own context
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     read_index: function (fields, options) {
         options = options || {};
         return this.read_ids([this.ids[this.index]], fields, options).then(function (records) {
-            if (_.isEmpty(records)) { return Promise.reject(); }
+            if (_.isEmpty(records)) { return $.Deferred().reject().promise(); }
             return records[0];
         });
     },
@@ -440,7 +437,7 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      *
      * @param {Array} [fields] fields to get default values for, by default all defaults are read
      * @param {Object} [options.context] context data to add to the request payload, on top of the DataSet's own context
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     default_get: function (fields, options) {
         options = options || {};
@@ -454,17 +451,15 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * @param {Object} options Dictionary that can contain the following keys:
      *   - readonly_fields: Values from readonly fields that were updated by
      *     on_changes. Only used by the BufferedDataSet to make the o2m work correctly.
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     create: function (data, options) {
         var self = this;
-        var prom = this._model.call('create', [data], {
+        return this._model.call('create', [data], {
             context: this.get_context()
-        });
-        prom.then(function () {
+        }).done(function () {
             self.trigger('dataset_changed', data, options);
         });
-        return prom;
     },
     /**
      * Saves the provided data in an existing db record
@@ -475,18 +470,16 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      *   - context: The context to use in the server-side call.
      *   - readonly_fields: Values from readonly fields that were updated by
      *     on_changes. Only used by the BufferedDataSet to make the o2m work correctly.
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     write: function (id, data, options) {
         options = options || {};
         var self = this;
-        var prom = this._model.call('write', [[id], data], {
+        return this._model.call('write', [[id], data], {
             context: this.get_context(options.context)
-        });
-        prom.then(function () {
+        }).done(function () {
             self.trigger('dataset_changed', id, data, options);
         });
-        return prom;
     },
     /**
      * Deletes an existing record from the database
@@ -495,13 +488,11 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      */
     unlink: function (ids) {
         var self = this;
-        var prom = this._model.call('unlink', [ids], {
+        return this._model.call('unlink', [ids], {
             context: this.get_context()
-        });
-        prom.then(function () {
+        }).done(function () {
             self.trigger('dataset_changed', ids);
         });
-        return prom;
     },
     /**
      * Calls an arbitrary RPC method
@@ -510,7 +501,7 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * @param {Array} [args] arguments to pass to the method
      * @param {Function} callback
      * @param {Function} error_callback
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     call: function (method, args) {
         return this._model.call(method, args);
@@ -520,7 +511,7 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      *
      * @param {String} method
      * @param {Array} [args]
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     call_button: function (method, args) {
         return this._model.call_button(method, args);
@@ -529,7 +520,7 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * Fetches the "readable name" for records, based on intrinsic rules
      *
      * @param {Array} ids
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     name_get: function (ids) {
         return this._model.call('name_get', [ids], {context: this.get_context()});
@@ -541,7 +532,7 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * @param {String} [operator='ilike'] matching operator to use with the provided name value
      * @param {Number} [limit=0] maximum number of matches to return
      * @param {Function} callback function to call with name_search result
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     name_search: function (name, domain, operator, limit) {
         return this._model.call('name_search', {
@@ -612,14 +603,14 @@ var DataSet =  Class.extend(mixins.PropertiesMixin, {
      * Resequence records.
      *
      * @param {Array} ids identifiers of the records to resequence
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     resequence: function (ids, options) {
         options = options || {};
         return session.rpc('/web/dataset/resequence', {
             model: this.model,
             ids: ids,
-            context: pyUtils.eval(
+            context: pyeval.eval(
                 'context', this.get_context(options.context)),
         }).then(function (results) {
             return results;
@@ -652,7 +643,7 @@ var DataSetStatic =  DataSet.extend({
     unlink: function (ids) {
         this.set_ids(_.without.apply(null, [this.ids].concat(ids)));
         this.trigger('unlink', ids);
-        return Promise.resolve({result: true});
+        return $.Deferred().resolve({result: true});
     },
 });
 
@@ -683,7 +674,7 @@ var DataSetSearch = DataSet.extend({
      * @param {Array} [options.domain] domain data to add to the request payload, ANDed with the dataset's domain
      * @param {Number} [options.offset=0] The index from which selected records should be returned
      * @param {Number} [options.limit=null] The maximum number of records to return
-     * @returns {Promise}
+     * @returns {$.Deferred}
      */
     read_slice: function (fields, options) {
         options = options || {};
@@ -695,13 +686,11 @@ var DataSetSearch = DataSet.extend({
             .limit(options.limit || false);
         q = q.order_by.apply(q, this._sort);
 
-        var prom = this.orderer.add(q.all());
-        prom.then(function (records) {
+        return this.orderer.add(q.all()).done(function (records) {
             // FIXME: not sure about that one, *could* have discarded count
-            q.count().then(function (count) { self._length = count; });
+            q.count().done(function (count) { self._length = count; });
             self.ids = _(records).pluck('id');
         });
-        return prom;
     },
     get_domain: function (other_domain) {
         return this._model.domain(other_domain);
@@ -728,12 +717,10 @@ var DataSetSearch = DataSet.extend({
     },
     unlink: function (ids, callback, error_callback) {
         var self = this;
-        var prom = this._super(ids);
-        prom.then(function () {
+        return this._super(ids).done(function () {
             self.remove_ids( ids);
             self.trigger("dataset_changed", ids, callback, error_callback);
         });
-        return prom;
     },
     size: function () {
         if (this._length !== null) {
@@ -811,10 +798,10 @@ var Model = Class.extend({
      * Call a method (over RPC) on the bound OpenERP model.
      *
      * @param {String} method name of the method to call
-     * @param {Array} [args] positipyEvalonal arguments
+     * @param {Array} [args] positional arguments
      * @param {Object} [kwargs] keyword arguments
      * @param {Object} [options] additional options for the rpc() method
-     * @returns {Promise<>} call result
+     * @returns {jQuery.Deferred<>} call result
      */
     call: function (method, args, kwargs, options) {
         args = args || [];
@@ -824,7 +811,7 @@ var Model = Class.extend({
             kwargs = args;
             args = [];
         }
-        pyUtils.ensure_evaluated(args, kwargs);
+        pyeval.ensure_evaluated(args, kwargs);
         var call_kw = '/web/dataset/call_kw/' + this.name + '/' + method;
         return session.rpc(call_kw, {
             model: this.name,
@@ -834,14 +821,14 @@ var Model = Class.extend({
         }, options);
     },
     call_button: function (method, args) {
-        pyUtils.ensure_evaluated(args, {});
-        // context should be the last argument
-        var context = (args || []).length > 0 ? args.pop() : {};
+        pyeval.ensure_evaluated(args, {});
         return session.rpc('/web/dataset/call_button', {
             model: this.name,
             method: method,
-            args: args || [],
-            kwargs: {context: context},
+            // Should not be necessary anymore. Integrate remote in this?
+            domain_id: null,
+            context_id: args.length - 1,
+            args: args || []
         });
     },
 });

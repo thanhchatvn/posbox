@@ -6,21 +6,21 @@ odoo.define('web.ChangePassword', function (require) {
  * allows the user to change his password.
  */
 
-var AbstractAction = require('web.AbstractAction');
 var core = require('web.core');
 var Dialog = require('web.Dialog');
+var Widget = require('web.Widget');
 var web_client = require('web.web_client');
 
 var _t = core._t;
 
-var ChangePassword = AbstractAction.extend({
+var ChangePassword = Widget.extend({
     template: "ChangePassword",
 
     /**
      * @fixme: weird interaction with the parent for the $buttons handling
      *
      * @override
-     * @returns {Promise}
+     * @returns {Deferred}
      */
     start: function () {
         var self = this;
@@ -37,7 +37,7 @@ var ChangePassword = AbstractAction.extend({
                         fields: $('form[name=change_password_form]').serializeArray()
                     }
                 })
-                .then(function (result) {
+                .done(function (result) {
                     if (result.error) {
                         self._display_error(result);
                     } else {

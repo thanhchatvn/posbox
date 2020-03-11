@@ -3,7 +3,7 @@ odoo.define('web.Sidebar', function (require) {
 
 var Context = require('web.Context');
 var core = require('web.core');
-var pyUtils = require('web.py_utils');
+var pyeval = require('web.pyeval');
 var Widget = require('web.Widget');
 
 var QWeb = core.qweb;
@@ -11,7 +11,7 @@ var _t = core._t;
 
 var Sidebar = Widget.extend({
     events: {
-        "click a.dropdown-item": "_onDropdownClicked"
+        "click .dropdown-menu li a": "_onDropdownClicked"
     },
     /**
      * @override
@@ -146,14 +146,14 @@ var Sidebar = Widget.extend({
                     activeIdsContext.active_domain = env.domain;
                 }
 
-                var context = pyUtils.eval('context', new Context(env.context, activeIdsContext));
+                var context = pyeval.eval('context', new Context(env.context, activeIdsContext));
                 self._rpc({
                     route: '/web/action/load',
                     params: {
                         action_id: item.action.id,
                         context: context,
                     },
-                }).then(function (result) {
+                }).done(function (result) {
                     result.context = new Context(
                         result.context || {}, activeIdsContext)
                             .set_eval_context(context);
@@ -177,10 +177,9 @@ var Sidebar = Widget.extend({
         this.$el.html(QWeb.render('Sidebar', {widget: this}));
 
         // Hides Sidebar sections when item list is empty
-        _.each(this.$('.o_dropdown'), function (el) {
-            var $dropdown = $(el);
-            if (!$dropdown.find('.dropdown-item').length) {
-                $dropdown.hide();
+        this.$('.o_dropdown').each(function () {
+            if (!$(this).find('li').length) {
+                $(this).hide();
             }
         });
         this.$("[title]").tooltip({

@@ -6,13 +6,18 @@ import odoo.tests
 
 RE_ONLY = re.compile('QUnit\.only\(')
 
-
-@odoo.tests.tagged('post_install', '-at_install')
 class WebSuite(odoo.tests.HttpCase):
 
-    def test_js(self):
+    post_install = True
+    at_install = False
+
+    def test_01_js(self):
         # webclient desktop test suite
-        self.phantom_js('/web/tests?mod=web&failfast', "", "", login='admin', timeout=1800)
+        self.phantom_js('/web/tests?mod=web', "", "", login='admin', timeout=390)
+
+    def test_02_js(self):
+        # webclient mobile test suite
+        self.phantom_js('/web/tests/mobile?mod=web', "", "", login='admin', timeout=300)
 
     def test_check_suite(self):
         # verify no js test is using `QUnit.only` as it forbid any other test to be executed
@@ -31,12 +36,3 @@ class WebSuite(odoo.tests.HttpCase):
             with open(filename, 'rb') as fp:
                 if RE_ONLY.search(fp.read().decode('utf-8')):
                     self.fail("`QUnit.only()` used in file %r" % asset['url'])
-
-
-@odoo.tests.tagged('post_install', '-at_install')
-class MobileWebSuite(odoo.tests.HttpCase):
-    browser_size = '375x667'
-
-    def test_mobile_js(self):
-        # webclient mobile test suite
-        self.phantom_js('/web/tests/mobile?mod=web&failfast', "", "", login='admin', timeout=1800)
