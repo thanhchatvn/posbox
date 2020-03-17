@@ -77,6 +77,7 @@ class Notification(object):
         self.start()
 
     def loop(self):
+        _logger.info('loop()')
         if not odoo.evented:
             current = threading.current_thread()
             current._daemonic = True
@@ -158,4 +159,5 @@ class SaveOrderController(web.Home):
         _logger.info('ping server ip address %s' % ip)
         param = '-n' if platform.system().lower() == 'windows' else '-c'
         command = ['ping', param, '1', ip]
-        return json.dumps({'state': 'succeed', 'values': subprocess.call(command) == 0})
+        ping_result = subprocess.call(command)
+        return json.dumps({'state': 'succeed', 'values': ping_result})

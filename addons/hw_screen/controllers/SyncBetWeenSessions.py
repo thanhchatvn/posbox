@@ -71,63 +71,17 @@ class SyncController(web.Home):
 
     @http.route('/pos/register/sync', type="json", auth='none', cors='*')
     def register_sync(self, database, config_ids, sync_multi_session_offline):
-        if sync_multi_session_offline:
-            driver.register_point(database, config_ids)
+        driver.register_point(database, config_ids)
         return json.dumps({'state': 'succeed', 'values': {}})
 
     @http.route('/pos/save/sync', type="json", auth='none', cors='*')
     def save_sync(self, database, send_from_config_id, config_ids, message, sync_multi_session_offline):
-        if sync_multi_session_offline:
-            driver.save_notification(database, send_from_config_id, config_ids, message)
-        else:
-            Log = request.env['pos.sync.session.log'].sudo()
-            send_from_session = request.env['pos.session'].sudo().search([
-                ('config_id', '=', send_from_config_id),
-                ('config_id.sync_multi_session_save_logs', '=', True),
-                ('state', '=', 'opened')
-            ], limit=1)
-            send_to_sessions = request.env['pos.session'].sudo().search([
-                ('config_id', 'in', config_ids),
-                ('config_id.sync_multi_session_save_logs', '=', True),
-                ('state', '=', 'opened')
-            ])
-            if request.env.context.get('uid', None) and send_from_session:
-                Log.create({
-                    'send_from_session_id': send_from_session.id,
-                    'user_id': request.env.context.get('uid', None),
-                    'action': message.get('action', None),
-                    'logs': json.dumps(message)
-                })
-                for send_to_session in send_to_sessions:
-                    Log.create({
-                        'send_from_session_id': send_from_session.id,
-                        'send_to_session_id': send_to_session.id,
-                        'user_id': request.env.context.get('uid', None),
-                        'action': message.get('action', None),
-                        'logs': json.dumps(message)
-                    })
+        driver.save_notification(database, send_from_config_id, config_ids, message)
         return json.dumps({'state': 'succeed', 'values': {}})
 
     @http.route('/pos/get/sync', type="json", auth='none', cors='*')
     def get_sync(self, database, config_id, session_id, sync_multi_session_offline):
-        if sync_multi_session_offline:
-            values = driver.get_notifications(database, config_id)
-        else:
-            values = []
-            Log = request.env['pos.sync.session.log'].sudo()
-            logs = Log.search([
-                ('send_to_session_id', '=', session_id),
-                ('state', '=', 'ready')
-            ])
-            log_ids = []
-            for log in logs:
-                values.append([0, 0, json.loads(log.logs)])
-                log_ids.append(log.id)
-            if len(log_ids) > 0:
-                if len(log_ids) == 1:
-                    log_ids.append(0)
-                request.env.cr.execute("UPDATE pos_sync_session_log SET state='restored' WHERE id in %s",  (tuple(log_ids),))
-                request.env.cr.commit()
+        values = driver.get_notifications(database, config_id)
         return json.dumps({'state': 'succeed', 'values': values})
 
     @http.route('/pos/passing/login', type='http', auth='none', cors='*')
