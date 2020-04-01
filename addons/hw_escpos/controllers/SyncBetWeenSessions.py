@@ -69,7 +69,7 @@ driver = SyncDrive()
 
 class SyncController(web.Home):
 
-    @@http.route('/pos/register/sync', type="json", auth='none', cors='*')
+    @http.route('/pos/register/sync', type="json", auth='none', cors='*')
     def register_sync(self, database, config_id, session_id, config_ids, sync_multi_session_offline):
         values = []
         if sync_multi_session_offline:
