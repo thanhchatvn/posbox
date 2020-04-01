@@ -69,15 +69,17 @@ class SaveOrdersDrive(Thread):
 
 driver = SaveOrdersDrive()
 
-class Notification(object):
+class SaveOrderController(web.Home):
 
-    def __init__(self):
-        self.channels = {}
-        self.started = False
-        self.start()
+    @http.route('/pos/save/orders', type="json", auth='none', cors='*')
+    def save_orders(self, database, orders, url, username, server_version):
+        driver.save_orders_to_queue(database, orders, url, username, server_version)
+        order_ids = [order['id'] for order in orders]
+        return json.dumps({'state': 'succeed', 'order_ids': order_ids})
 
-    def loop(self):
-        _logger.info('loop()')
+    @http.route('/pos/push/orders', type="json", auth='none', cors='*')
+    def push_orders(self, database):
+        _logger.info('push orders to server Odoo')
         results = driver.get_orders()
         headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         for database, orders in results.items():
@@ -101,53 +103,6 @@ class Notification(object):
             except:
                 orders = [order[2] for order in orders]
                 driver.save_orders_to_queue(database, orders, url, username, server_version)
-        return True
-
-    def run(self):
-        while True:
-            try:
-                self.loop()
-                time.sleep(TIMEOUT)
-                self.run()
-            except Exception as e:
-                _logger.exception("Bus.loop error, sleep and retry")
-                time.sleep(TIMEOUT)
-                self.run()
-
-    def start(self):
-        if self.started:
-            return True
-        if odoo.evented:            # TODO: gevent mode
-            import gevent
-            self.Event = gevent.event.Event
-            gevent.spawn(self.run)
-        else:                       # TODO: threaded mode
-            self.Event = threading.Event
-            t = threading.Thread(name="%s.Bus" % __name__, target=self.run)
-            t.daemon = True
-            t.start()
-        self.started = True
-        return self
-
-dispatch = Notification()
-dispatch.start()
-
-class SaveOrderController(web.Home):
-
-    def __init__(self):
-        self.dispatch = None
-
-    @http.route('/pos/save/orders', type="json", auth='none', cors='*')
-    def save_orders(self, database, orders, url, username, server_version):
-        driver.save_orders_to_queue(database, orders, url, username, server_version)
-        order_ids = [order['id'] for order in orders]
-        return json.dumps({'state': 'succeed', 'order_ids': order_ids})
-
-    @http.route('/pos/push/orders', type="json", auth='none', cors='*')
-    def push_orders(self, database):
-        if (not odoo.multi_process or odoo.evented) and not self.dispatch:
-            self.dispatch = Notification()
-            self.dispatch.start()
         return json.dumps({'state': 'succeed', 'values': {}})
 
     @http.route('/pos/ping/server', type="json", auth='none', cors='*')

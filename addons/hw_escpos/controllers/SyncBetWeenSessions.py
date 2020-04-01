@@ -69,23 +69,19 @@ driver = SyncDrive()
 
 class SyncController(web.Home):
 
-    @http.route('/pos/register/sync', type="json", auth='none', cors='*')
-    def register_sync(self, database, config_ids, sync_multi_session_offline=True):
+    @@http.route('/pos/register/sync', type="json", auth='none', cors='*')
+    def register_sync(self, database, config_id, session_id, config_ids, sync_multi_session_offline):
+        values = []
         if sync_multi_session_offline:
             driver.register_point(database, config_ids)
-        return json.dumps({'state': 'succeed', 'values': {}})
+            values = driver.get_notifications(database, config_id)
+        return json.dumps({'state': 'succeed', 'values': values})
 
     @http.route('/pos/save/sync', type="json", auth='none', cors='*')
     def save_sync(self, database, send_from_config_id, config_ids, message, sync_multi_session_offline=True):
         if sync_multi_session_offline:
             driver.save_notification(database, send_from_config_id, config_ids, message)
         return json.dumps({'state': 'succeed', 'values': {}})
-
-    @http.route('/pos/get/sync', type="json", auth='none', cors='*')
-    def get_sync(self, database, config_id, session_id, sync_multi_session_offline=True):
-        if sync_multi_session_offline:
-            values = driver.get_notifications(database, config_id)
-        return json.dumps({'state': 'succeed', 'values': values})
 
     @http.route('/pos/passing/login', type='http', auth='none', cors='*')
     def pos_login(self):
