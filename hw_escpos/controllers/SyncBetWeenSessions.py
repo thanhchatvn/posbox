@@ -27,7 +27,6 @@ _logger = logging.getLogger(__name__)
 class SyncDrive(Thread):
 
     def __init__(self):
-        Thread.__init__(self)
         self.chef_login = {}
         self.lock = Lock()
         self.sync_datas = {}
@@ -71,10 +70,8 @@ class SyncController(web.Home):
 
     @http.route('/pos/register/sync', type="json", auth='none', cors='*')
     def register_sync(self, database, config_id, session_id, config_ids, sync_multi_session_offline):
-        values = []
-        if sync_multi_session_offline:
-            driver.register_point(database, config_ids)
-            values = driver.get_notifications(database, config_id)
+        driver.register_point(database, config_ids)
+        values = driver.get_notifications(database, config_id)
         return json.dumps({'state': 'succeed', 'values': values})
 
     @http.route('/pos/save/sync', type="json", auth='none', cors='*')

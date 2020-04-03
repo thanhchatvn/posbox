@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*
-from threading import Thread, Lock
+from threading import Thread
 from odoo import http, _
 
 try:
@@ -13,13 +13,11 @@ except ImportError:
     from Queue import Queue
 
 from odoo.addons.web.controllers import main as web
-import odoo
 
 import time
 import json
 import requests
 import logging
-import threading
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 
@@ -30,8 +28,6 @@ TIMEOUT = 30
 class SaveOrdersDrive(Thread):
 
     def __init__(self):
-        Thread.__init__(self)
-        self.lock = Lock()
         self.sync_datas = {}
 
     def register_point(self, database):
