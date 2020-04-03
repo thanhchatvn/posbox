@@ -70,7 +70,7 @@ driver = SyncDrive()
 class SyncController(web.Home):
 
     @http.route('/pos/register/sync', type="json", auth='none', cors='*')
-    def register_sync(self, database, config_ids, sync_multi_session_offline):
+    def register_sync(self, database, config_id, session_id, config_ids, sync_multi_session_offline):
         driver.register_point(database, config_ids)
         values = driver.get_notifications(database, config_id)
         return json.dumps({'state': 'succeed', 'values': values})
