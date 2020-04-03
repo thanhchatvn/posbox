@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*
-from threading import Thread, Lock
+from threading import Thread
 from odoo import http, _
 
 try:
