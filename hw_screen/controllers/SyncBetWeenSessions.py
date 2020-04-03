@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*
-from odoo.http import request
 import time
 from threading import Thread, Lock
 from odoo import http, _
@@ -27,7 +26,6 @@ _logger = logging.getLogger(__name__)
 class SyncDrive(Thread):
 
     def __init__(self):
-        Thread.__init__(self)
         self.chef_login = {}
         self.lock = Lock()
         self.sync_datas = {}
