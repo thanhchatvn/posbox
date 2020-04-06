@@ -106,4 +106,7 @@ class SaveOrderController(web.Home):
         _logger.info('ping server ip address %s' % ip)
         param = '-n' if platform.system().lower() == 'windows' else '-c'
         command = ['ping', param, '1', ip]
+        result = subprocess.call(command) == 0
+        time.sleep(3) # TODO: sleep 3 seconds for waiting response
+        _logger.info(result)
         return json.dumps({'state': 'succeed', 'values': subprocess.call(command) == 0})
