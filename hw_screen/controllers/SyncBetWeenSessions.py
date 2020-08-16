@@ -31,7 +31,6 @@ class SyncDrive(Thread):
         self.sync_datas = {}
 
     def register_point(self, database, config_ids):
-        _logger.info('{%s} register_point working' % database)
         if not self.sync_datas.get(database, None):
             self.sync_datas[database] = {}
             for config_id in config_ids:
@@ -40,7 +39,6 @@ class SyncDrive(Thread):
         return True
 
     def save_notification(self, database, send_from_config_id, config_ids, message):
-        _logger.info('{%s} save_notification working' % database)
         database_datas = self.sync_datas.get(database)
         if not database_datas:
             self.register_point(database, config_ids)
@@ -51,7 +49,6 @@ class SyncDrive(Thread):
         return True
 
     def get_notifications(self, database, config_id):
-        _logger.info('{%s} get_notifications working' % database)
         result_list = []
         if not self.sync_datas.get(database, None):
             self.sync_datas[database] = {}
@@ -77,7 +74,7 @@ class SyncController(web.Home):
         return json.dumps({'state': 'succeed', 'values': values})
 
     @http.route('/pos/save/sync', type="json", auth='none', cors='*')
-    def save_sync(self, order_uid, database, send_from_config_id, config_ids, message, sync_multi_session_offline):
+    def save_sync(self, order_uid, database, send_from_config_id, config_ids, message, sync_multi_session_offline, sync_tracking_activities_user=None):
         driver.save_notification(database, send_from_config_id, config_ids, message)
         return json.dumps({'state': 'succeed', 'values': {}})
 

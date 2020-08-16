@@ -2,7 +2,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
-    'name': 'ESC/POS Hardware Driver',
+    'name': 'ESC/POS Hardware Driver, Printer via Network',
+    'version': '1.0.0.1',
     'category': 'Point of Sale',
     'sequence': 6,
     'website': 'https://www.odoo.com/page/point-of-sale',
