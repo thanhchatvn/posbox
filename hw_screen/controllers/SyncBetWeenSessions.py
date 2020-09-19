@@ -68,17 +68,17 @@ driver = SyncDrive()
 class SyncController(web.Home):
 
     @http.route('/pos/register/sync', type="json", auth='none', cors='*')
-    def register_sync(self, order_uid, database, config_id, session_id, config_ids, sync_multi_session_offline):
+    def register_sync(self, database, config_id, config_ids):
         driver.register_point(database, config_ids)
         values = driver.get_notifications(database, config_id)
         return json.dumps({'state': 'succeed', 'values': values})
 
     @http.route('/pos/save/sync', type="json", auth='none', cors='*')
-    def save_sync(self, order_uid, database, send_from_config_id, config_ids, message, sync_multi_session_offline, sync_tracking_activities_user=None):
+    def save_sync(self, database, send_from_config_id, config_ids, message):
         driver.save_notification(database, send_from_config_id, config_ids, message)
         return json.dumps({'state': 'succeed', 'values': {}})
 
-    @http.route('/pos/passing/login', type='http', auth='none', cors='*')
+    @http.route('/pos/passing/login', type='json', auth='none', cors='*')
     def pos_login(self):
         return "ping"
 
