@@ -2,7 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Sync Point, Screen Driver',
-    'version': '1.0.0.1',
+    'version': '1.0.0.2',
     'category': 'Hardware Drivers',
     'sequence': 6,
     'summary': 'Provides support for customer facing displays',

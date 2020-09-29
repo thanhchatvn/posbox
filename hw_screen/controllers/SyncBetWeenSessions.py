@@ -25,17 +25,41 @@ _logger = logging.getLogger(__name__)
 
 class SyncDrive(Thread):
 
+    """
+    Any datas sync between session stored to Queue and by config_id
+    period 2 seconds, pos sessions auto call to this controller and get new updates datas
+    Key point of queue is Database
+    Each Database have config ID and Arrays Datas
+    Example:
+        Queue = {
+            'db1': {
+                'config_1': [data1, data2 ....etc],
+                'config_2': [data1, data2 ....etc],
+            },
+            'db2': {
+                'config_1': [data1, data2 ....etc],
+                'config_2': [data1, data2 ....etc],
+            }
+        }
+    Each POS Config save total maximum 2000 datas, if bigger than or equal 2000, we remove datas for reduce RAM
+    TODO: If Odoo-Server restart: all datas sync will lose (*****)
+    """
+
     def __init__(self):
+        Thread.__init__(self)
         self.chef_login = {}
         self.lock = Lock()
         self.sync_datas = {}
+        self.total_notification_by_config_id = {}
 
     def register_point(self, database, config_ids):
         if not self.sync_datas.get(database, None):
             self.sync_datas[database] = {}
+            self.total_notification_by_config_id[database] = {}
             for config_id in config_ids:
                 if not self.sync_datas[database].get(config_id, None):
                     self.sync_datas[database][config_id] = Queue()
+                    self.total_notification_by_config_id[database][config_id] = 0
         return True
 
     def save_notification(self, database, send_from_config_id, config_ids, message):
@@ -44,8 +68,17 @@ class SyncDrive(Thread):
             self.register_point(database, config_ids)
         databases = self.sync_datas.get(database)
         for config_id, values in databases.items():
-            if config_id != send_from_config_id:
+            if config_id != send_from_config_id and config_id in config_ids:
                 databases[config_id].put((time.time(), config_id, message))
+                _logger.info('{sync} save notification to config_id %s' % config_id)
+                if not self.total_notification_by_config_id.get(database, None):
+                    self.total_notification_by_config_id[database] = {}
+                if not self.total_notification_by_config_id[database].get(config_id, None):
+                    self.total_notification_by_config_id[database][config_id] = 0
+                self.total_notification_by_config_id[database][config_id] += 1
+                # TODO: if total notifications of config_id bigger than 2000, we clear data for reduce RAM of system
+                if self.total_notification_by_config_id[database][config_id] >= 2000:
+                    self.sync_datas[database][config_id].get()
         return True
 
     def get_notifications(self, database, config_id):
@@ -59,8 +92,12 @@ class SyncDrive(Thread):
                 self.sync_datas[database][config_id] = Queue()
             while not self.sync_datas[database][config_id].empty():
                 result_list.append(self.sync_datas[database][config_id].get())
+            if not self.total_notification_by_config_id.get(database, None):
+                self.total_notification_by_config_id[database] = {}
+            if not self.total_notification_by_config_id[database].get(config_id, None):
+                self.total_notification_by_config_id[database][config_id] = 0
+            self.total_notification_by_config_id[database][config_id] -= len(result_list)
         return result_list
-
 
 driver = SyncDrive()
 
