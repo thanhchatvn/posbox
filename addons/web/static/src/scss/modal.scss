@@ -7,6 +7,10 @@
             margin-left: 10px;
         }
 
+        .modal-header .modal-title {
+            word-break: break-word;
+        }
+
         .modal-body {
             &.o_act_window {
                 padding: 0;
@@ -54,10 +58,9 @@
             footer {
                 > :not(:first-child) { margin-left: .25rem; }
                 > :not(:last-child) { margin-right: .25rem; }
-            }
-
-            button {
-                margin-bottom: .5rem;
+                button {
+                    margin-bottom: .5rem;
+                }
             }
         }
     }
@@ -107,9 +110,15 @@
     }
 }
 
-body.modal-open {
-    // Allow vertical scrolling in modals on iOS
-    -webkit-overflow-scrolling: touch;
+.modal.o_inactive_modal {
+    z-index: $zindex-modal-backdrop - 1;
+}
+
+.o_dialog {
+
+    > .modal {
+        display: block;
+    }
 }
 
 // Temporary fix for modals which are not instantiated thanks to the Dialog

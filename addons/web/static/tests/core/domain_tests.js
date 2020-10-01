@@ -7,6 +7,11 @@ QUnit.module('core', {}, function () {
 
     QUnit.module('domain');
 
+    QUnit.test("empty", function (assert) {
+        assert.expect(1);
+        assert.ok(new Domain([]).compute({}));
+    });
+
     QUnit.test("basic", function (assert) {
         assert.expect(3);
 
@@ -57,6 +62,22 @@ QUnit.module('core', {}, function () {
 
         assert.ok(new Domain(1).compute({}));
         assert.notOk(new Domain(0).compute({}));
+    });
+
+    QUnit.test("invalid domains should not succeed", function (assert) {
+        assert.expect(3);
+        assert.throws(
+            () => new Domain(['|', ['hr_presence_state', '=', 'absent']]),
+            /invalid domain .* \(missing 1 segment/
+        );
+        assert.throws(
+            () => new Domain(['|', '|', ['hr_presence_state', '=', 'absent'], ['attendance_state', '=', 'checked_in']]),
+            /invalid domain .* \(missing 1 segment/
+        );
+        assert.throws(
+            () => new Domain(['&', ['composition_mode', '!=', 'mass_post']]),
+            /invalid domain .* \(missing 1 segment/
+        );
     });
 
     QUnit.test("domain <=> condition", function (assert) {
@@ -110,6 +131,16 @@ QUnit.module('core', {}, function () {
         var actual = Domain.prototype.conditionToDomain(condition);
         assert.strictEqual(typeof(actual),typeof([]));
         assert.strictEqual(actual.length, 0);
+    });
+
+    QUnit.test("compute true domain", function (assert) {
+        assert.expect(1);
+        assert.ok(new Domain(Domain.TRUE_DOMAIN).compute({}));
+    });
+
+    QUnit.test("compute false domain", function (assert) {
+        assert.expect(1);
+        assert.notOk(new Domain(Domain.FALSE_DOMAIN).compute({}));
     });
 });
 });

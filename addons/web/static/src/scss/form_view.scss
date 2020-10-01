@@ -471,6 +471,10 @@
             margin-top: 0;
             margin-bottom: 0;
             line-height: inherit;
+
+            &.d-flex > .o_input {
+                height: max-content;
+            }
         }
         .o_priority > .o_priority_star {
             font-size: inherit;
@@ -610,6 +614,10 @@
         &.o_field_translate {
             padding-right: 25px;
         }
+    }
+    iframe.wysiwyg_iframe + .o_field_translate {
+        right: 30px !important;
+        top: 7px !important;
     }
 
     // Text field with oe_inline class
@@ -808,11 +816,31 @@
 // Overridden style when form view in modal
 .modal .modal-dialog {
     .o_form_view {
+        .o_statusbar_buttons > .btn {
+            /**
+             * Override to prevent the status bar from increasing height when
+             * inside dialog due to the original margin on those buttons. This
+             * prevents the other status buttons, those on the far right of the
+             * bar, from having a gap between their bottom and the bottom border
+             * of the status bar itself.
+             */
+            margin-top: 2px;
+            margin-bottom: 2px;
+        }
+
         .o_form_sheet_bg {
             padding: 0;
 
-            > * {
-                margin: 0;
+            > .o_form_statusbar, > .alert {
+                /**
+                 * Override to prevent the status bar from overflowing on its
+                 * far right. The original value is a negative margin that
+                 * is supposed to compensate unwanted padding of the original
+                 * view but the view inside dialog already has this padding
+                 * removed.
+                 */
+                margin-left: 0;
+                margin-right: 0;
             }
 
             > .o_form_sheet {
@@ -820,10 +848,14 @@
                 width: 100%;
                 margin: 0 auto;
                 max-width: none;
+                /**
+                 * Override to prevent double border, because the borders of the
+                 * dialog itself or the borders of other surrounding elements
+                 * (status bar, dialog footer) already act as a border for the
+                 * sheet when inside dialog.
+                 */
+                border: none;
             }
-        }
-        .oe_chatter {
-            display: none;
         }
     }
     &:not(.modal-lg) .o_form_view {

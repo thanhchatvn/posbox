@@ -1,17 +1,18 @@
 odoo.define('web.data_export_tests', function (require) {
 "use strict";
 
-var framework = require('web.framework');
-var ListView = require('web.ListView');
-var testUtils = require('web.test_utils');
-var data = require('web.data');
+const data = require('web.data');
+const framework = require('web.framework');
+const ListView = require('web.ListView');
+const testUtils = require('web.test_utils');
 
-var createView = testUtils.createView;
+const cpHelpers = testUtils.controlPanel;
+const createView = testUtils.createView;
 
 QUnit.module('widgets', {
     beforeEach: function () {
         this.data = {
-            partner: {
+            'partner': {
                 fields: {
                     foo: {string: "Foo", type: "char"},
                     bar: {string: "Bar", type: "char"},
@@ -39,6 +40,40 @@ QUnit.module('widgets', {
                 records: [],
             },
         };
+        this.mockSession = {
+            async user_has_group(g) { return g === 'base.group_allow_export'; }
+        }
+        this.mockDataExportRPCs = function (route) {
+            if (route === '/web/export/formats') {
+                return Promise.resolve([
+                    {tag: 'csv', label: 'CSV'},
+                    {tag: 'xls', label: 'Excel'},
+                ]);
+            }
+            if (route === '/web/export/get_fields') {
+                return Promise.resolve([
+                    {
+                        field_type: "one2many",
+                        string: "Activities",
+                        required: false,
+                        value: "activity_ids/id",
+                        id: "activity_ids",
+                        params: {"model": "mail.activity", "prefix": "activity_ids", "name": "Activities"},
+                        relation_field: "res_id",
+                        children: true,
+                    }, {
+                        children: false,
+                        field_type: 'char',
+                        id: "foo",
+                        relation_field: null,
+                        required: false,
+                        string: 'Foo',
+                        value: "foo",
+                    }
+                ]);
+            }
+            return this._super.apply(this, arguments);
+        };
     }
 }, function () {
 
@@ -63,40 +98,11 @@ QUnit.module('widgets', {
             data: this.data,
             arch: '<tree><field name="foo"/></tree>',
             viewOptions: {
-                hasSidebar: true,
+                hasActionMenus: true,
             },
-            mockRPC: function (route) {
-                if (route === '/web/export/formats') {
-                    return Promise.resolve([
-                        {tag: 'csv', label: 'CSV'},
-                        {tag: 'xls', label: 'Excel'},
-                    ]);
-                }
-                if (route === '/web/export/get_fields') {
-                    return Promise.resolve([
-                        {
-                            field_type: "one2many",
-                            string: "Activities",
-                            required: false,
-                            value: "activity_ids/id",
-                            id: "activity_ids",
-                            params: {"model": "mail.activity", "prefix": "activity_ids", "name": "Activities"},
-                            relation_field: "res_id",
-                            children: true,
-                        }, {
-                            children: false,
-                            field_type: 'char',
-                            id: "foo",
-                            relation_field: null,
-                            required: false,
-                            string: 'Foo',
-                            value: "foo",
-                        }
-                    ]);
-                }
-                return this._super.apply(this, arguments);
-            },
+            mockRPC: this.mockDataExportRPCs,
             session: {
+                ...this.mockSession,
                 get_file: function (params) {
                     assert.step(params.url);
                     params.complete();
@@ -104,9 +110,11 @@ QUnit.module('widgets', {
             },
         });
 
+
         await testUtils.dom.click(list.$('thead th.o_list_record_selector input'));
-        await testUtils.dom.click(list.sidebar.$('.o_dropdown_toggler_btn:contains(Action)'));
-        await testUtils.dom.click(list.sidebar.$('a:contains(Export)'));
+
+        await cpHelpers.toggleActionMenu(list);
+        await cpHelpers.toggleMenuItem(list, 'Export');
 
         assert.strictEqual($('.modal').length, 1, "a modal dialog should be open");
         assert.strictEqual($('div.o_tree_column:contains(Activities)').length, 1,
@@ -128,12 +136,69 @@ QUnit.module('widgets', {
         ]);
     });
 
+    QUnit.test('exporting data in list view (multi pages)', async function (assert) {
+        assert.expect(4);
+
+        let expectedData;
+        const list = await createView({
+            View: ListView,
+            model: 'partner',
+            data: this.data,
+            arch: '<tree limit="2"><field name="foo"/></tree>',
+            domain: [['id', '<', 1000]],
+            viewOptions: {
+                hasActionMenus: true,
+            },
+            mockRPC: this.mockDataExportRPCs,
+            session: {
+                ...this.mockSession,
+                get_file: function (params) {
+                    const data = JSON.parse(params.data.data);
+                    assert.deepEqual({ids: data.ids, domain: data.domain}, expectedData);
+                    params.complete();
+                },
+            },
+        });
+
+        // select all records (first page) and export
+        expectedData = {
+            ids: [1, 2],
+            domain: [['id', '<', 1000]],
+        };
+        await testUtils.dom.click(list.$('thead th.o_list_record_selector input'));
+
+        await cpHelpers.toggleActionMenu(list);
+        await cpHelpers.toggleMenuItem(list, 'Export');
+
+        assert.containsOnce(document.body, '.modal');
+
+        await testUtils.dom.click($('.modal span:contains(Export)'));
+        await testUtils.dom.click($('.modal span:contains(Close)'));
+
+        // select all domain and export
+        expectedData = {
+            ids: false,
+            domain: [['id', '<', 1000]],
+        };
+        await testUtils.dom.click(list.$('.o_list_selection_box .o_list_select_domain'));
+
+        await cpHelpers.toggleActionMenu(list);
+        await cpHelpers.toggleMenuItem(list, 'Export');
+
+        assert.containsOnce(document.body, '.modal');
+
+        await testUtils.dom.click($('.modal span:contains(Export)'));
+        await testUtils.dom.click($('.modal span:contains(Close)'));
+
+        list.destroy();
+    });
+
     QUnit.test('saving fields list when exporting data', async function (assert) {
         assert.expect(4);
 
         var create = data.DataSet.prototype.create;
 
-        data.DataSet.prototype.create = function (data, options) {
+        data.DataSet.prototype.create = function () {
             assert.step('create');
             return Promise.resolve([]);
         };
@@ -144,45 +209,18 @@ QUnit.module('widgets', {
             data: this.data,
             arch: '<tree><field name="foo"/></tree>',
             viewOptions: {
-                hasSidebar: true,
+                hasActionMenus: true,
             },
-            mockRPC: function (route) {
-                if (route === '/web/export/formats') {
-                    return Promise.resolve([
-                        {tag: 'csv', label: 'CSV'},
-                        {tag: 'xls', label: 'Excel'},
-                    ]);
-                }
-                if (route === '/web/export/get_fields') {
-                    return Promise.resolve([
-                        {
-                            field_type: "one2many",
-                            string: "Activities",
-                            required: false,
-                            value: "activity_ids/id",
-                            id: "activity_ids",
-                            params: {"model": "mail.activity", "prefix": "activity_ids", "name": "Activities"},
-                            relation_field: "res_id",
-                            children: true,
-                        }, {
-                            children: false,
-                            field_type: 'char',
-                            id: "foo",
-                            relation_field: null,
-                            required: false,
-                            string: 'Foo',
-                            value: "foo",
-                        }
-                    ]);
-                }
-                return this._super.apply(this, arguments);
-            },
+            session: this.mockSession,
+            mockRPC: this.mockDataExportRPCs,
         });
+
 
         // Open the export modal
         await testUtils.dom.click(list.$('thead th.o_list_record_selector input'));
-        await testUtils.dom.click(list.sidebar.$('.o_dropdown_toggler_btn:contains(Action)'));
-        await testUtils.dom.click(list.sidebar.$('a:contains(Export)'));
+        await cpHelpers.toggleActionMenu(list);
+        await cpHelpers.toggleMenuItem(list, 'Export');
+
         assert.strictEqual($('.modal').length, 1,
             "a modal dialog should be open");
 
@@ -207,51 +245,24 @@ QUnit.module('widgets', {
     });
 
     QUnit.test('Export dialog UI test', async function (assert) {
-        assert.expect(4);
+        assert.expect(5);
         var list = await createView({
             View: ListView,
             model: 'partner',
             data: this.data,
             arch: '<tree><field name="foo"/></tree>',
             viewOptions: {
-                hasSidebar: true,
+                hasActionMenus: true,
             },
-            mockRPC: function (route) {
-                if (route === '/web/export/formats') {
-                    return Promise.resolve([
-                        {tag: 'csv', label: 'CSV' },
-                        {tag: 'xls', label: 'Excel' },
-                    ]);
-                }
-                if (route === '/web/export/get_fields') {
-                    return Promise.resolve([
-                        {
-                            field_type: "one2many",
-                            string: "Activities",
-                            required: false,
-                            value: "activity_ids/id",
-                            id: "activity_ids",
-                            params: {"model": "mail.activity", "prefix": "activity_ids", "name": "Activities" },
-                            relation_field: "res_id",
-                            children: true,
-                        }, {
-                            children: false,
-                            field_type: 'char',
-                            id: "foo",
-                            relation_field: null,
-                            required: false,
-                            string: 'Foo',
-                            value: "foo",
-                        }
-                    ]);
-                }
-                return this._super.apply(this, arguments);
-            },
+            session: this.mockSession,
+            mockRPC: this.mockDataExportRPCs,
         });
+
+
         // Open the export modal
-        await testUtils.dom.click(list.$('thead .o_list_record_selector input'));
-        await testUtils.dom.click(list.sidebar.$('.o_dropdown_toggler_btn:contains(Action)'));
-        await testUtils.dom.click(list.sidebar.$('a:contains(Export)'));
+        await testUtils.dom.click(list.$('thead th.o_list_record_selector input'));
+        await cpHelpers.toggleActionMenu(list);
+        await cpHelpers.toggleMenuItem(list, 'Export');
 
         assert.strictEqual($('.modal .o_export_tree_item:visible').length, 2, "There should be only two items visible");
         await testUtils.dom.click($('.modal .o_export_search_input'));
@@ -262,6 +273,8 @@ QUnit.module('widgets', {
         // Add field
         await testUtils.dom.click($('.modal div:contains(Activities) .o_add_field'));
         assert.strictEqual($('.modal .o_fields_list li').length, 2, "There should be two fields in export field list.");
+        assert.strictEqual($('.modal .o_fields_list li:eq(1)').text(), "Activities",
+            "string of second field in export list should be 'Activities'");
         // Remove field
         await testUtils.dom.click($('.modal .o_fields_list li:first .o_remove_field'));
         assert.strictEqual($('.modal .o_fields_list li').length, 1, "There should be only one field in list");
@@ -276,13 +289,14 @@ QUnit.module('widgets', {
             model: 'partner',
             data: this.data,
             arch: `<tree export_xlsx="0"><field name="foo"/></tree>`,
+            session: this.mockSession,
         });
         assert.containsNone(list, '.o_list_export_xlsx')
         list.destroy();
     });
 
     QUnit.test('Direct export list ', async function (assert) {
-        assert.expect(2)
+        assert.expect(2);
 
         let list = await createView({
             View: ListView,
@@ -295,6 +309,7 @@ QUnit.module('widgets', {
                 </tree>`,
             domain: [['bar', '!=', 'glou']],
             session: {
+                ...this.mockSession,
                 get_file(args) {
                     let data = JSON.parse(args.data.data);
                     assert.strictEqual(args.url, '/web/export/xlsx', "should call get_file with the correct url");
@@ -312,14 +327,12 @@ QUnit.module('widgets', {
                             name: 'bar',
                             label: 'Bar',
                         }]
-                    }, "should be called with correct params")
+                    }, "should be called with correct params");
                     args.complete();
                 },
             },
         });
 
-        // select a record => should not be taken into account
-        await testUtils.dom.click(list.$('.o_data_row .o_list_record_selector input')[0]);
         // Download
         await testUtils.dom.click(list.$buttons.find('.o_list_export_xlsx'));
 
@@ -327,13 +340,12 @@ QUnit.module('widgets', {
     });
 
     QUnit.test('Direct export grouped list ', async function (assert) {
-        assert.expect(2)
+        assert.expect(2);
 
         let list = await createView({
             View: ListView,
             model: 'partner',
             data: this.data,
-            debug: true,
             arch: `
                 <tree>
                     <field name="foo"/>
@@ -342,6 +354,7 @@ QUnit.module('widgets', {
             groupBy: ['foo', 'bar'],
             domain: [['bar', '!=', 'glou']],
             session: {
+                ...this.mockSession,
                 get_file(args) {
                     let data = JSON.parse(args.data.data);
                     assert.strictEqual(args.url, '/web/export/xlsx', "should call get_file with the correct url");
@@ -359,7 +372,7 @@ QUnit.module('widgets', {
                             name: 'bar',
                             label: 'Bar',
                         }]
-                    }, "should be called with correct params")
+                    }, "should be called with correct params");
                     args.complete();
                 },
             },

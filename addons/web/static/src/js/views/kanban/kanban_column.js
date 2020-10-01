@@ -29,7 +29,8 @@ var KanbanColumn = Widget.extend({
         'click .o_kanban_load_more': '_onLoadMore',
         'click .o_kanban_toggle_fold': '_onToggleFold',
         'click .o_column_archive_records': '_onArchiveRecords',
-        'click .o_column_unarchive_records': '_onUnarchiveRecords'
+        'click .o_column_unarchive_records': '_onUnarchiveRecords',
+        'click .o_kanban_config .dropdown-menu': '_onConfigDropdownClicked',
     },
     /**
      * @override
@@ -63,6 +64,7 @@ var KanbanColumn = Widget.extend({
         this.relation = options.relation;
         this.offset = 0;
         this.remaining = data.count - this.data_records.length;
+        this.canBeFolded = this.folded;
 
         if (options.hasProgressBar) {
             this.barOptions = {
@@ -73,8 +75,8 @@ var KanbanColumn = Widget.extend({
 
         this.record_options = _.clone(recordOptions);
 
-        if (options.grouped_by_m2o) {
-            // For many2one, a false value means that the field is not set.
+        if (options.grouped_by_m2o || options.grouped_by_date ) {
+            // For many2one and datetime, a false value means that the field is not set.
             this.title = value ? value : _t('Undefined');
         } else {
             // False and 0 might be valid values for these fields.
@@ -101,10 +103,7 @@ var KanbanColumn = Widget.extend({
             defs.push(this._addRecord(this.data_records[i]));
         }
 
-        if (this.recordsDraggable && !config.device.isMobile) {
-            // deactivate sortable in mobile mode.  It does not work anyway,
-            // and it breaks horizontal scrolling in kanban views.  Someday, we
-            // should find a way to use the touch events to make sortable work.
+        if (this.recordsDraggable) {
             this.$el.sortable({
                 connectWith: '.o_kanban_group',
                 containment: this.draggable ? false : 'parent',
@@ -158,7 +157,7 @@ var KanbanColumn = Widget.extend({
         var title = this.folded ? this.title + ' (' + this.data.count + ')' : this.title;
         this.$header.find('.o_column_title').text(title);
 
-        this.$el.toggleClass('o_column_folded', this.folded && !config.device.isMobile);
+        this.$el.toggleClass('o_column_folded', this.canBeFolded);
         if (this.tooltipInfo) {
             this.$header.find('.o_kanban_header_title').tooltip({}).attr('data-original-title', this.tooltipInfo);
         }
@@ -193,7 +192,7 @@ var KanbanColumn = Widget.extend({
      *
      * @returns {Promise}
      */
-    addQuickCreate: function () {
+    addQuickCreate: async function () {
         if (this.folded) {
             // first open the column, and then add the quick create
             this.trigger_up('column_toggle_fold', {
@@ -206,7 +205,6 @@ var KanbanColumn = Widget.extend({
             return Promise.reject();
         }
         this.trigger_up('close_quick_create'); // close other quick create widgets
-        this.trigger_up('start_quick_create');
         var context = this.data.getContext();
         context['default_' + this.groupedBy] = viewUtils.getGroupValue(this.data, this.groupedBy);
         this.quickCreateWidget = new RecordQuickCreate(this, {
@@ -214,7 +212,10 @@ var KanbanColumn = Widget.extend({
             formViewRef: this.quickCreateView,
             model: this.modelName,
         });
-        return this.quickCreateWidget.insertAfter(this.$header);
+        await this.quickCreateWidget.appendTo(document.createDocumentFragment());
+        this.trigger_up('start_quick_create');
+        this.quickCreateWidget.$el.insertAfter(this.$header);
+        this.quickCreateWidget.on_attach_callback();
     },
     /**
      * Closes the quick create widget if it isn't dirty.
@@ -287,13 +288,22 @@ var KanbanColumn = Widget.extend({
      * @private
      */
     _onAddQuickCreate: function () {
-        this.addQuickCreate();
+        this.trigger_up('add_quick_create', { groupId: this.db_id });
     },
     /**
      * @private
      */
     _onCancelQuickCreate: function () {
         this._cancelQuickCreate();
+    },
+    /**
+     * Prevent from closing the config dropdown when the user clicks on a
+     * disabled item (e.g. 'Fold' in sample mode).
+     *
+     * @private
+     */
+    _onConfigDropdownClicked(ev) {
+        ev.stopPropagation();
     },
     /**
      * @private

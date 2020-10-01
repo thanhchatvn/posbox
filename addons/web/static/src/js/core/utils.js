@@ -203,7 +203,32 @@ var diacriticsMap = {
 '\u0225': 'z','\u0240': 'z','\u2C6C': 'z','\uA763': 'z',
 };
 
+const patchMap = new WeakMap();
+
+/**
+ * Helper function returning an extraction handler to use on array elements to
+ * return a certain attribute or mutated form of the element.
+ *
+ * @private
+ * @param {string | function} criterion
+ * @returns {(element: any) => any}
+ */
+function _getExtractorFrom(criterion) {
+    if (criterion) {
+        switch (typeof criterion) {
+            case 'string': return element => element[criterion];
+            case 'function': return criterion;
+            default: throw new Error(
+                `Expected criterion of type 'string' or 'function' and got '${typeof criterion}'`
+            );
+        }
+    } else {
+        return element => element;
+    }
+}
+
 var utils = {
+
     /**
      * Throws an error if the given condition is not true
      *
@@ -299,6 +324,31 @@ var utils = {
             reader.addEventListener('error', reject);
             reader.readAsDataURL(file);
         });
+    },
+    /**
+     * Returns an object holding different groups defined by a given criterion
+     * or a default one. Each group is a subset of the original given list.
+     * The given criterion can either be:
+     * - a string: a property name on the list elements which value will be the
+     * group name,
+     * - a function: a handler that will return the group name from a given
+     * element.
+     *
+     * @param {any[]} list
+     * @param {string | function} [criterion]
+     * @returns {Object}
+     */
+    groupBy: function (list, criterion) {
+        const extract = _getExtractorFrom(criterion);
+        const groups = {};
+        for (const element of list) {
+            const group = String(extract(element));
+            if (!(group in groups)) {
+                groups[group] = [];
+            }
+            groups[group].push(element);
+        }
+        return groups;
     },
     /**
      * Returns a human readable number (e.g. 34000 -> 34k).
@@ -443,6 +493,14 @@ var utils = {
         return (/^\d+(\.\d*)? [^0-9]+$/).test(v);
     },
     /**
+     * Checks if a class is an extension of owl.Component.
+     *
+     * @param {any} value A class reference
+     */
+    isComponent: function (value) {
+        return value.prototype instanceof owl.Component;
+    },
+    /**
      * Returns whether the given anchor is valid.
      *
      * This test is useful to prevent a crash that would happen if using an invalid
@@ -514,13 +572,99 @@ var utils = {
         return new Array(size - str.length + 1).join('0') + str;
     },
     /**
+     * @param {any[]} arr
+     * @param {Function} fn
+     * @returns {any[]}
+     */
+    partitionBy(arr, fn) {
+        let lastGroup = false;
+        let lastValue;
+        return arr.reduce((acc, cur) => {
+            let curVal = fn(cur);
+            if (lastGroup) {
+                if (curVal === lastValue) {
+                    lastGroup.push(cur);
+                } else {
+                    lastGroup = false;
+                }
+            }
+            if (!lastGroup) {
+                lastGroup = [cur];
+                acc.push(lastGroup);
+            }
+            lastValue = curVal;
+            return acc;
+        }, []);
+    },
+    /**
+     * Patch a class and return a function that remove the patch
+     * when called.
+     *
+     * This function is the last resort solution for monkey-patching an
+     * ES6 Class, for people that do not control the code defining the Class
+     * to patch (e.g. partners), and when that Class isn't patchable already
+     * (i.e. when it doesn't have a 'patch' function, defined by the 'web.patchMixin').
+     *
+     * @param {Class} C Class to patch
+     * @param {string} patchName
+     * @param {Object} patch
+     * @returns {Function}
+     */
+    patch: function (C, patchName, patch) {
+        let metadata = patchMap.get(C.prototype);
+        if (!metadata) {
+            metadata = {
+                origMethods: {},
+                patches: {},
+                current: []
+            };
+            patchMap.set(C.prototype, metadata);
+        }
+        const proto = C.prototype;
+        if (metadata.patches[patchName]) {
+            throw new Error(`Patch [${patchName}] already exists`);
+        }
+        metadata.patches[patchName] = patch;
+        applyPatch(proto, patch);
+        metadata.current.push(patchName);
+
+        function applyPatch(proto, patch) {
+            Object.keys(patch).forEach(function (methodName) {
+                const method = patch[methodName];
+                if (typeof method === "function") {
+                    const original = proto[methodName];
+                    if (!(methodName in metadata.origMethods)) {
+                        metadata.origMethods[methodName] = original;
+                    }
+                    proto[methodName] = function (...args) {
+                        const previousSuper = this._super;
+                        this._super = original;
+                        const res = method.call(this, ...args);
+                        this._super = previousSuper;
+                        return res;
+                    };
+                }
+            });
+        }
+
+        return utils.unpatch.bind(null, C, patchName);
+    },
+    /**
      * performs a half up rounding with a fixed amount of decimals, correcting for float loss of precision
      * See the corresponding float_round() in server/tools/float_utils.py for more info
      * @param {Number} value the value to be rounded
      * @param {Number} decimals the number of decimals. eg: round_decimals(3.141592,2) -> 3.14
      */
     round_decimals: function (value, decimals) {
-        return utils.round_precision(value, Math.pow(10,-decimals));
+        /**
+         * The following decimals introduce numerical errors:
+         * Math.pow(10, -4) = 0.00009999999999999999
+         * Math.pow(10, -5) = 0.000009999999999999999
+         *
+         * Such errors will propagate in round_precision and lead to inconsistencies between Python
+         * and JavaScript. To avoid this, we parse the scientific notation.
+         */
+        return utils.round_precision(value, parseFloat('1e' + -decimals));
     },
     /**
      * performs a half up rounding with arbitrary precision, correcting for float loss of precision
@@ -576,6 +720,49 @@ var utils = {
             'max-age=' + ttl,
             'expires=' + new Date(new Date().getTime() + ttl*1000).toGMTString()
         ].join(';');
+    },
+    /**
+     * Return a shallow copy of a given array sorted by a given criterion or a default one.
+     * The given criterion can either be:
+     * - a string: a property name on the array elements returning the sortable primitive
+     * - a function: a handler that will return the sortable primitive from a given element.
+     *
+     * @param {any[]} array
+     * @param {string | function} [criterion]
+     */
+    sortBy: function (array, criterion) {
+        const extract = _getExtractorFrom(criterion);
+        return array.slice().sort((elA, elB) => {
+            const a = extract(elA);
+            const b = extract(elB);
+            if (isNaN(a) && isNaN(b)) {
+                return a > b ? 1 : a < b ? -1 : 0;
+            } else {
+                return a - b;
+            }
+        });
+    },
+    /**
+     * Returns a string formatted using given values.
+     * If the value is an object, its keys will replace `%(key)s` expressions.
+     * If the values are a set of strings, they will replace `%s` expressions.
+     * If no value is given, the string will not be formatted.
+     *
+     * @param {string} string
+     * @param  {(Object|...string)} values
+     */
+    sprintf: function (string, ...values) {
+        if (values.length === 1 && typeof values[0] === 'object') {
+            const valuesDict = values[0];
+            for (const value in valuesDict) {
+                string = string.replace(`%(${value})s`, valuesDict[value]);
+            }
+        } else {
+            for (const value of values) {
+                string = string.replace(/%s/, value);
+            }
+        }
+        return string;
     },
     /**
      * Sort an array in place, keeping the initial order for identical values.
@@ -663,6 +850,33 @@ var utils = {
             return diacriticsMap[accented] || accented;
         });
         return casesensetive ? str : str.toLowerCase();
+    },
+    /**
+     * We define here an unpatch function.  This is mostly useful if we want to
+     * remove a patch.  For example, for testing purposes
+     *
+     * @param {Class} C
+     * @param {string} patchName
+     */
+    unpatch: function (C, patchName) {
+        const proto = C.prototype;
+        let metadata = patchMap.get(proto);
+        if (!metadata) {
+            return;
+        }
+        patchMap.delete(proto);
+
+        // reset to original
+        for (let k in metadata.origMethods) {
+            proto[k] = metadata.origMethods[k];
+        }
+
+        // apply other patches
+        for (let name of metadata.current) {
+            if (name !== patchName) {
+                utils.patch(C, name, metadata.patches[name]);
+            }
+        }
     },
     /**
      * @param {any} node
@@ -783,11 +997,9 @@ var utils = {
         return [
             '&',
             ['res_model', '=', 'ir.ui.view'],
-            '|', '|', '|',
+            '|',
             ['name', '=like', '%.assets\_%.css'],
             ['name', '=like', '%.assets\_%.js'],
-            ['name', '=', 'web_editor.summernote.css'],
-            ['name', '=', 'web_editor.summernote.js'],
         ];
     },
 };

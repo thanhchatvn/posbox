@@ -1,6 +1,6 @@
-$o-company-font: 'Lato' !default;
-$o-company-primary-color: rgb(0, 0, 0) !default;
-$o-company-secondary-color: rgb(0, 0, 0) !default;
+$o-default-report-font: 'Lato' !default;
+$o-default-report-primary-color: rgb(0, 0, 0) !default;
+$o-default-report-secondary-color: rgb(0, 0, 0) !default;
 
 html, body {
     height: 100%;
@@ -10,7 +10,7 @@ html, body {
 body {
     color: #000 !important;
     word-wrap: break-word;
-    font-family: $o-company-font;
+    font-family: $o-default-report-font;
 }
 .border-black td, .border-black th {
     border-top: 1px solid black !important;
@@ -63,4 +63,17 @@ div#total {
             }
         }
     }
+}
+
+// Wkhtmltopdf doesn't handle flexbox properly, both the content
+// of columns and columns themselves does not wrap over new lines
+// when needed: the font of the pdf will reduce to make the content
+// fit the page format.
+// A (weak) solution is to force the content on one line and
+// impose the width, so to have evenly size columns.
+// This should work fine in most cases, but will yield ugly results
+// when 6+ columns are rendered
+.col-auto{
+    -webkit-box-flex: 1 !important;
+    width: 100% !important;
 }

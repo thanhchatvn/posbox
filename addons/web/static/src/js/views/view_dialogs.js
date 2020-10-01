@@ -110,7 +110,7 @@ var FormViewDialog = ViewDialog.extend({
 
         if (!options.buttons) {
             options.buttons = [{
-                text: (readonly ? _t("Close") : _t("Discard")),
+                text: options.close_text || (readonly ? _t("Close") : _t("Discard")),
                 classes: "btn-secondary o_form_button_cancel",
                 close: true,
                 click: function () {
@@ -124,7 +124,7 @@ var FormViewDialog = ViewDialog.extend({
 
             if (!readonly) {
                 options.buttons.unshift({
-                    text: (multi_select ? _t("Save & Close") : _t("Save")),
+                    text: options.save_text || (multi_select ? _t("Save & Close") : _t("Save")),
                     classes: "btn-primary",
                     click: function () {
                         self._save().then(self.close.bind(self));
@@ -200,6 +200,7 @@ var FormViewDialog = ViewDialog.extend({
                 model: self.model,
                 parentID: self.parentID,
                 recordID: self.recordID,
+                isFromFormViewDialog: true,
             });
             return formview.getController(self);
         }).then(function (formView) {
@@ -220,6 +221,7 @@ var FormViewDialog = ViewDialog.extend({
                             callbacks: [{widget: self.form_view}],
                             in_DOM: true,
                         });
+                        self.form_view.updateButtons();
                     });
                     return _super();
                 });

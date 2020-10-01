@@ -38,7 +38,7 @@
     }
 
     // Flex fields (inline)
-    &.o_field_many2one, &.o_field_radio, &.o_field_many2manytags, &.o_field_percent_pie, &.o_field_monetary, &.o_field_binary_file {
+    &.o_field_many2one, &.o_field_radio, &.o_field_many2manytags, &.o_field_percent_pie, &.o_field_monetary, &.o_field_binary_file, &.o_field_float_percentage {
         display: inline-flex;
         > span, > button {
             flex: 0 0 auto;
@@ -54,6 +54,10 @@
         > input {
             padding-right: 15px;
             cursor: pointer;
+
+            &::-ms-clear {
+                display: none;
+            }
         }
 
         .o_dropdown_button {
@@ -72,7 +76,7 @@
     }
 
     // Monetary
-    &.o_field_monetary {
+    &.o_field_monetary, &.o_field_float_percentage {
         &.o_input {
             align-items: baseline;
 
@@ -80,6 +84,17 @@
                 width: 100px;
                 flex: 1 0 auto;
             }
+        }
+    }
+
+    // Many2OneAvatar
+    &.o_field_many2one_avatar {
+        > img.o_m2o_avatar {
+            border-radius: 50%;
+            width: 19px;
+            height: 19px;
+            object-fit: cover;
+            margin-right: 4px;
         }
     }
 
@@ -161,6 +176,9 @@
         .o_colorpicker > ul {
             @include o-tag-colorpicker;
             white-space: normal;
+            li > .o_hide_in_kanban label {
+                line-height: $o-line-height-base;
+            }
         }
 
         @for $size from 1 through length($o-colors) {
@@ -475,6 +493,16 @@
         height: 30px;
         margin: 0 5px 0 0;
         display: inline-block;
+    }
+
+    &.o_field_badge {
+        border: 0;
+        font-size: 12px;
+        user-select: none;
+        background-color: rgba(lightgray, 0.5);
+        font-weight: 500;
+        @include o-text-overflow;
+        transition: none; // remove transition to prevent badges from flickering at reload
     }
 }
 

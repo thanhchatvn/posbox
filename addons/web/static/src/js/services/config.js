@@ -1,17 +1,28 @@
-odoo.define('web.config', function () {
+odoo.define('web.config', function (require) {
 "use strict";
+
+const Bus = require('web.Bus');
+
+const bus = new Bus();
 
 /**
  * This module contains all the (mostly) static 'environmental' information.
  * This is often necessary to allow the rest of the web client to properly
  * render itself.
  *
- * Note that many informations currently stored in session should be moved to
+ * Note that many information currently stored in session should be moved to
  * this file someday.
  */
 
 var config = {
     device: {
+        /**
+        * bus to use in order to be able to handle device config related events
+        *   - 'size_changed' : triggered when window size is
+        *     corresponding to a new bootstrap breakpoint. The new size_class
+         *    is provided.
+        */
+        bus: bus,
         /**
          * touch is a boolean, true if the device supports touch interaction
          *
@@ -34,6 +45,20 @@ var config = {
          * @type Boolean
          */
         isMobile: null,
+        /**
+         * Mobile device detection using userAgent.
+         * This flag doesn't depend on the size/resolution of the screen.
+         * It targets mobile devices which suggests that there is a virtual keyboard.
+         *
+         * @return {boolean}
+         */
+        isMobileDevice: navigator.userAgent.match(/Android/i) ||
+            navigator.userAgent.match(/webOS/i) ||
+            navigator.userAgent.match(/iPhone/i) ||
+            navigator.userAgent.match(/iPad/i) ||
+            navigator.userAgent.match(/iPod/i) ||
+            navigator.userAgent.match(/BlackBerry/i) ||
+            navigator.userAgent.match(/Windows Phone/i),
         /**
          * Mapping between the numbers 0,1,2,3,4,5,6 and some descriptions
          */
@@ -85,6 +110,7 @@ function _updateSizeProps() {
     if (sc !== config.device.size_class) {
         config.device.size_class = sc;
         config.device.isMobile = config.device.size_class <= config.device.SIZES.SM;
+        config.device.bus.trigger('size_changed', config.device.size_class);
     }
 }
 

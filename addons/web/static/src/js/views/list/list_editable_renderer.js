@@ -15,6 +15,7 @@ var core = require('web.core');
 var dom = require('web.dom');
 var ListRenderer = require('web.ListRenderer');
 var utils = require('web.utils');
+const { WidgetAdapterMixin } = require('web.OwlCompatibility');
 
 var _t = core._t;
 
@@ -42,7 +43,6 @@ ListRenderer.include({
      * @param {boolean} params.isMultiEditable
      */
     init: function (parent, state, params) {
-        var self = this;
         this._super.apply(this, arguments);
 
         this.editable = params.editable;
@@ -62,33 +62,27 @@ ListRenderer.include({
 
         // The following code will browse the arch to find
         // all the <create> that are inside <control>
-
-        if (this.addCreateLine) {
-            this.creates = [];
-
-            _.each(this.arch.children, function (child) {
-                if (child.tag !== 'control') {
+        this.creates = [];
+        this.arch.children.forEach(child => {
+            if (child.tag !== 'control') {
+                return;
+            }
+            child.children.forEach(child => {
+                if (child.tag !== 'create' || child.attrs.invisible) {
                     return;
                 }
-
-                _.each(child.children, function (child) {
-                    if (child.tag !== 'create' || child.attrs.invisible) {
-                        return;
-                    }
-
-                    self.creates.push({
-                        context: child.attrs.context,
-                        string: child.attrs.string,
-                    });
+                this.creates.push({
+                    context: child.attrs.context,
+                    string: child.attrs.string,
                 });
             });
+        });
 
-            // Add the default button if we didn't find any custom button.
-            if (this.creates.length === 0) {
-                this.creates.push({
-                    string: _t("Add a line"),
-                });
-            }
+        // Add the default button if we didn't find any custom button.
+        if (this.creates.length === 0) {
+            this.creates.push({
+                string: _t("Add a line"),
+            });
         }
 
         // if addTrashIcon is true, there will be a small trash icon at the end
@@ -134,8 +128,11 @@ ListRenderer.include({
      */
     on_attach_callback: function () {
         this.isInDOM = true;
-        this._freezeColumnWidths();
         this._super();
+        // _freezeColumnWidths requests style information, which produces a
+        // repaint, so we call it after _super to prevent flickering (in case
+        // other code would also modify the DOM post rendering/before repaint)
+        this._freezeColumnWidths();
     },
     /**
      * The list renderer needs to know if it is in the DOM to properly compute
@@ -192,7 +189,7 @@ ListRenderer.include({
             if (widgets.length) {
                 var $row = self._getRow(recordID);
                 var record = self._getRecord(recordID);
-                self._setDecorationClasses(record, $row);
+                self._setDecorationClasses($row, self.rowDecorations, record);
                 self._updateFooter();
             }
             return widgets;
@@ -226,7 +223,7 @@ ListRenderer.include({
         var self = this;
 
         var oldData = this.state.data;
-        this.state = state;
+        this._setState(state);
         return this.confirmChange(state, id, fields, ev).then(function () {
             // If no record with 'id' can be found in the state, the
             // confirmChange method will have rerendered the whole view already,
@@ -372,7 +369,7 @@ ListRenderer.include({
      * @param {string} recordID
      */
     removeLine: function (state, recordID) {
-        this.state = state;
+        this._setState(state);
         var $row = this._getRow(recordID);
         if ($row.length === 0) {
             return;
@@ -391,12 +388,10 @@ ListRenderer.include({
             // we want to always keep at least 4 (possibly empty) rows
             var $emptyRow = this._renderEmptyRow();
             $row.replaceWith($emptyRow);
-            if (this.editable === "top") {
-                // move the empty row we just inserted after data rows
-                var $lastDataRow = this.$('.o_data_row:last');
-                if ($lastDataRow.length) {
-                    $emptyRow.insertAfter($lastDataRow);
-                }
+            // move the empty row we just inserted after last data row
+            const $lastDataRow = this.$('.o_data_row:last');
+            if ($lastDataRow.length) {
+                $emptyRow.insertAfter($lastDataRow);
             }
         }
     },
@@ -469,6 +464,9 @@ ListRenderer.include({
         }
 
         return Promise.all(defs).then(function () {
+            // mark Owl sub components as mounted
+            WidgetAdapterMixin.on_attach_callback.call(self);
+
             // necessary to trigger resize on fieldtexts
             core.bus.trigger('DOM_updated');
         });
@@ -507,12 +505,12 @@ ListRenderer.include({
                 onSuccess: resolve,
                 onFailure: reject,
             });
-        }).then(changedFields => {
+        }).then(selectNextRow => {
             this._enableRecordSelectors();
             // If any field has changed and if the list is in multiple edition,
             // we send a truthy boolean to _selectRow to tell it not to select
             // the following record.
-            return changedFields && changedFields.length && this.isInMultipleRecordEdition(recordID);
+            return selectNextRow;
         }).guardedCatch(() => {
             toggleWidgets(false);
         });
@@ -531,6 +529,15 @@ ListRenderer.include({
             // remove computed modifiers data (as they are obsolete) to force
             // them to be recomputed at next (sub-)rendering
             this.allModifiersData = [];
+        }
+        if ('addTrashIcon' in params) {
+            if (this.addTrashIcon !== params.addTrashIcon) {
+                this.columnWidths = false; // columns changed, so forget stored widths
+            }
+            this.addTrashIcon = params.addTrashIcon;
+        }
+        if ('addCreateLine' in params) {
+            this.addCreateLine = params.addCreateLine;
         }
         return this._super.apply(this, arguments);
     },
@@ -657,10 +664,10 @@ ListRenderer.include({
         if (!thElements.length) {
             return;
         }
-        const table = this.el.getElementsByTagName('table')[0];
+        const table = this.el.getElementsByClassName('o_list_table')[0];
         let columnWidths = this.columnWidths;
 
-        if (!columnWidths) { // no column widths to restore
+        if (!columnWidths || !columnWidths.length) { // no column widths to restore
             // Set table layout auto and remove inline style to make sure that css
             // rules apply (e.g. fixed width of record selector)
             table.style.tableLayout = 'auto';
@@ -749,7 +756,7 @@ ListRenderer.include({
             return '1';
         }
         const fixedWidths = {
-            boolean: '50px',
+            boolean: '70px',
             date: '92px',
             datetime: '146px',
             float: '92px',
@@ -1200,15 +1207,17 @@ ListRenderer.include({
             $tr.append($td);
             $rows.push($tr);
 
-            _.each(this.creates, function (create, index) {
-                var $a = $('<a href="#" role="button">')
-                    .attr('data-context', create.context)
-                    .text(create.string);
-                if (index > 0) {
-                    $a.addClass('ml16');
-                }
-                $td.append($a);
-            });
+            if (this.addCreateLine) {
+                _.each(this.creates, function (create, index) {
+                    var $a = $('<a href="#" role="button">')
+                        .attr('data-context', create.context)
+                        .text(create.string);
+                    if (index > 0) {
+                        $a.addClass('ml16');
+                    }
+                    $td.append($a);
+                });
+            }
         }
         return $rows;
     },
@@ -1220,7 +1229,7 @@ ListRenderer.include({
     _renderView: function () {
         this.currentRow = null;
         return this._super.apply(this, arguments).then(() => {
-            const table = this.el.getElementsByTagName('table')[0];
+            const table = this.el.getElementsByClassName('o_list_table')[0];
             if (table) {
                 table.classList.toggle('o_empty_list', !this._hasVisibleRecords(this.state));
                 this._freezeColumnWidths();
@@ -1300,8 +1309,8 @@ ListRenderer.include({
         var recordId = this._getRecordID(rowIndex);
         // To select a row, the currently selected one must be unselected first
         var self = this;
-        return this.unselectRow().then(noSelectNext => {
-            if (noSelectNext) {
+        return this.unselectRow().then((selectNextRow = true) => {
+            if (!selectNextRow) {
                 return Promise.resolve();
             }
             if (!recordId) {
@@ -1326,14 +1335,22 @@ ListRenderer.include({
      * Set a maximum width on the largest columns in the list in case the table
      * is overflowing. The idea is to shrink largest columns first, but to
      * ensure that they are still the largest at the end (maybe in equal measure
-     * with other columns).
+     * with other columns). Button columns aren't impacted by this function, as
+     * we assume that they can't be squeezed (we want all buttons to always be
+     * available, not being replaced by ellipsis).
      *
      * @private
      * @returns {integer[]} width (in px) of each column s.t. the table doesn't
      *   overflow
      */
     _squeezeTable: function () {
-        const table = this.el.getElementsByTagName('table')[0];
+        const table = this.el.getElementsByClassName('o_list_table')[0];
+
+        // Toggle a className used to remove style that could interfer with the ideal width
+        // computation algorithm (e.g. prevent text fields from being wrapped during the
+        // computation, to prevent them from being completely crushed)
+        table.classList.add('o_list_computing_widths');
+
         const thead = table.getElementsByTagName('thead')[0];
         const thElements = [...thead.getElementsByTagName('th')];
         const columnWidths = thElements.map(th => th.offsetWidth);
@@ -1354,7 +1371,7 @@ ListRenderer.include({
             return thresholdReached;
         };
         // Sort columns, largest first
-        const sortedThs = [...thead.getElementsByTagName('th')]
+        const sortedThs = [...thead.querySelectorAll('th:not(.o_list_button)')]
             .sort((a, b) => getWidth(b) - getWidth(a));
         const allowedWidth = table.parentNode.offsetWidth;
 
@@ -1380,6 +1397,9 @@ ListRenderer.include({
 
             totalWidth = getTotalWidth();
         }
+
+        // We are no longer computing widths, so restore the normal style
+        table.classList.remove('o_list_computing_widths');
 
         return columnWidths;
     },
@@ -1549,6 +1569,10 @@ ListRenderer.include({
             return;
         }
         ev.stopPropagation(); // stop the event, the action is done by this renderer
+        if (ev.data.originalEvent && ['next', 'previous'].includes(ev.data.direction)) {
+            ev.data.originalEvent.preventDefault();
+            ev.data.originalEvent.stopPropagation();
+        }
         switch (ev.data.direction) {
             case 'previous':
                 if (this.currentFieldIndex > 0) {
@@ -1672,7 +1696,7 @@ ListRenderer.include({
 
         this.isResizing = true;
 
-        const table = this.el.getElementsByTagName('table')[0];
+        const table = this.el.getElementsByClassName('o_list_table')[0];
         const th = ev.target.closest('th');
         table.style.width = `${table.offsetWidth}px`;
         const thPosition = [...th.parentNode.children].indexOf(th);
@@ -1689,6 +1713,11 @@ ListRenderer.include({
             'mousedown',
             'mouseup',
         ];
+
+        // Fix container width to prevent the table from overflowing when being resized
+        if (!this.el.style.width) {
+            this.el.style.width = `${initialTableWidth}px`;
+        }
 
         // Apply classes to table and selected column
         table.classList.add('o_resizing');

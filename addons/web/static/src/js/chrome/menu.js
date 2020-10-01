@@ -46,6 +46,7 @@ var Menu = Widget.extend({
         this.$menu_apps = this.$('.o_menu_apps');
         this.$menu_brand_placeholder = this.$('.o_menu_brand');
         this.$section_placeholder = this.$('.o_menu_sections');
+        this._updateMenuBrand();
 
         // Navbar's menus event handlers
         var on_secondary_menu_click = function (ev) {
@@ -69,6 +70,7 @@ var Menu = Widget.extend({
         // Systray Menu
         this.systray_menu = new SystrayMenu(this);
         var systrayMenuProm = this.systray_menu.attachTo(this.$('.o_menu_systray')).then(function() {
+            self.systray_menu.on_attach_callback();  // At this point, we know we are in the DOM
             dom.initAutoMoreMenu(self.$section_placeholder, {
             maxWidth: function () {
                 return self.$el.width() - (self.$menu_apps.outerWidth(true) + self.$menu_brand_placeholder.outerWidth(true) + self.systray_menu.$el.outerWidth(true));

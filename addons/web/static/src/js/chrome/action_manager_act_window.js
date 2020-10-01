@@ -119,7 +119,6 @@ ActionManager.include({
             return this.doAction(action, options);
         }
         return _super.apply(this, arguments);
-
     },
 
     //--------------------------------------------------------------------------
@@ -489,6 +488,7 @@ ActionManager.include({
             // can't switch to an unknown view
             return Promise.reject();
         }
+
         var currentController = this.getCurrentController();
         var index;
         if (currentController.actionID !== action.jsID) {
@@ -547,6 +547,7 @@ ActionManager.include({
                     return Promise.resolve(controller.widget.willRestore()).then(function () {
                         viewOptions = _.extend({}, viewOptions, {
                             breadcrumbs: self._getBreadcrumbs(self.controllerStack.slice(0, index)),
+                            shouldUpdateSearchComponents: true,
                         });
                         return controller.widget.reload(viewOptions).then(function () {
                             return controller;
@@ -689,7 +690,9 @@ ActionManager.include({
                 };
             }
             var options = {on_close: ev.data.on_closed};
-            action.flags = _.extend({}, action.flags, {searchPanelDefaultNoFilter: true});
+            if (config.device.isMobile && actionData.mobile) {
+                options = Object.assign({}, options, actionData.mobile);
+            }
             return self.doAction(action, options).then(ev.data.on_success, ev.data.on_fail);
         });
     },
@@ -706,15 +709,15 @@ ActionManager.include({
      */
     _onSwitchView: function (ev) {
         ev.stopPropagation();
-        var viewType = ev.data.view_type;
-        var currentController = this.getCurrentController();
+        const viewType = ev.data.view_type;
+        const currentController = this.getCurrentController();
         if (currentController.jsID === ev.data.controllerID) {
             // only switch to the requested view if the controller that
             // triggered the request is the current controller
-            var action = this.actions[currentController.actionID];
-            var currentControllerState = currentController.widget.exportState();
+            const action = this.actions[currentController.actionID];
+            const currentControllerState = currentController.widget.exportState();
             action.controllerState = _.extend({}, action.controllerState, currentControllerState);
-            var options = {
+            const options = {
                 controllerState: action.controllerState,
                 currentId: ev.data.res_id,
             };

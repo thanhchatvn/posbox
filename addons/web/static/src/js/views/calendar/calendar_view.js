@@ -17,13 +17,33 @@ var fieldsToGather = [
     "date_delay",
     "date_stop",
     "all_day",
+    "recurrence_update"
 ];
+
+const scalesInfo = {
+    day: 'timeGridDay',
+    week: 'timeGridWeek',
+    month: 'dayGridMonth',
+    year: 'dayGridYear',
+};
 
 var CalendarView = AbstractView.extend({
     display_name: _lt('Calendar'),
     icon: 'fa-calendar',
-    jsLibs: ['/web/static/lib/fullcalendar/js/fullcalendar.js'],
-    cssLibs: ['/web/static/lib/fullcalendar/css/fullcalendar.css'],
+    jsLibs: [
+        '/web/static/lib/fullcalendar/core/main.js',
+        '/web/static/lib/fullcalendar/interaction/main.js',
+        '/web/static/lib/fullcalendar/moment/main.js',
+        '/web/static/lib/fullcalendar/daygrid/main.js',
+        '/web/static/lib/fullcalendar/timegrid/main.js',
+        '/web/static/lib/fullcalendar/list/main.js'
+    ],
+    cssLibs: [
+        '/web/static/lib/fullcalendar/core/main.css',
+        '/web/static/lib/fullcalendar/daygrid/main.css',
+        '/web/static/lib/fullcalendar/timegrid/main.css',
+        '/web/static/lib/fullcalendar/list/main.css'
+    ],
     config: _.extend({}, AbstractView.prototype.config, {
         Model: CalendarModel,
         Controller: CalendarController,
@@ -66,9 +86,11 @@ var CalendarView = AbstractView.extend({
             if (child.tag !== 'field') return;
             var fieldName = child.attrs.name;
             fieldNames.push(fieldName);
-            if (!child.attrs.invisible) {
+            if (!child.attrs.invisible || child.attrs.filters) {
                 child.attrs.options = child.attrs.options ? pyUtils.py_eval(child.attrs.options) : {};
-                displayFields[fieldName] = {attrs: child.attrs};
+                if (!child.attrs.invisible) {
+                    displayFields[fieldName] = {attrs: child.attrs};
+                }
 
                 if (params.sidebar === false) return; // if we have not sidebar, (eg: Dashboard), we don't use the filter "coworkers"
 
@@ -92,23 +114,29 @@ var CalendarView = AbstractView.extend({
 
                     modelFilters.push(fields[fieldName].relation);
                 }
+                if (child.attrs.filters) {
+                    filters[fieldName] = filters[fieldName] || {
+                        'title': fields[fieldName].string,
+                        'fieldName': fieldName,
+                        'filters': [],
+                    };
+                    if (child.attrs.color) {
+                        filters[fieldName].field_color = child.attrs.color;
+                        filters[fieldName].color_model = fields[fieldName].relation;
+                    }
+                    if (!child.attrs.avatar_field && fields[fieldName].relation) {
+                        if (fields[fieldName].relation.includes(['res.users', 'res.partner', 'hr.employee'])) {
+                            filters[fieldName].avatar_field = 'image_128';
+                        }
+                        filters[fieldName].avatar_model = fields[fieldName].relation;
+                    }
+                }
             }
         });
 
         if (attrs.color) {
             var fieldName = attrs.color;
             fieldNames.push(fieldName);
-            filters[fieldName] = {
-                'title': fields[fieldName].string,
-                'fieldName': fieldName,
-                'filters': [],
-            };
-            if (fields[fieldName].relation) {
-                if (['res.users', 'res.partner', 'hr.employee'].indexOf(fields[fieldName].relation) !== -1) {
-                    filters[fieldName].avatar_field = 'image_128';
-                }
-                filters[fieldName].avatar_model = fields[fieldName].relation;
-            }
         }
 
         //if quick_add = False, we don't allow quick_add
@@ -130,28 +158,44 @@ var CalendarView = AbstractView.extend({
             }
         }
 
+        let scales;
+        const allowedScales = Object.keys(scalesInfo);
+        if (arch.attrs.scales) {
+            scales = arch.attrs.scales.split(',')
+                .filter(x => allowedScales.includes(x));
+        } else {
+            scales = allowedScales;
+        }
+
         this.controllerParams.eventOpenPopup = utils.toBoolElse(attrs.event_open_popup || '', false);
+        this.controllerParams.showUnusualDays = utils.toBoolElse(attrs.show_unusual_days || '', false);
         this.controllerParams.mapping = mapping;
         this.controllerParams.context = params.context || {};
         this.controllerParams.displayName = params.action && params.action.name;
+        this.controllerParams.scales = scales;
 
         this.rendererParams.displayFields = displayFields;
         this.rendererParams.model = viewInfo.model;
         this.rendererParams.hideDate = utils.toBoolElse(attrs.hide_date || '', false);
         this.rendererParams.hideTime = utils.toBoolElse(attrs.hide_time || '', false);
+        this.rendererParams.canDelete = this.controllerParams.activeActions.delete;
+        this.rendererParams.canCreate = this.controllerParams.activeActions.create;
+        this.rendererParams.scalesInfo = scalesInfo;
 
         this.loadParams.fieldNames = _.uniq(fieldNames);
         this.loadParams.mapping = mapping;
         this.loadParams.fields = fields;
         this.loadParams.fieldsInfo = viewInfo.fieldsInfo;
         this.loadParams.editable = !fields[mapping.date_start].readonly;
-        this.loadParams.creatable = true;
+        this.loadParams.creatable = this.controllerParams.activeActions.create;
         this.loadParams.eventLimit = eventLimit;
         this.loadParams.fieldColor = attrs.color;
 
         this.loadParams.filters = filters;
         this.loadParams.mode = (params.context && params.context.default_mode) || attrs.mode;
+        this.loadParams.scales = scales;
         this.loadParams.initialDate = moment(params.initialDate || new Date());
+        this.loadParams.scalesInfo = scalesInfo;
     },
 });
 

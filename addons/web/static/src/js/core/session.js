@@ -4,7 +4,6 @@ odoo.define('web.Session', function (require) {
 var ajax = require('web.ajax');
 var concurrency = require('web.concurrency');
 var core = require('web.core');
-var local_storage = require('web.local_storage');
 var mixins = require('web.mixins');
 var utils = require('web.utils');
 
@@ -212,7 +211,15 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
         });
     },
     load_translations: function () {
-        return _t.database.load_translations(this, this.module_list, this.user_context.lang, this.translationURL);
+        /* We need to get the website lang at this level.
+           The only way is to get it is to take the HTML tag lang
+           Without it, we will always send undefined if there is no lang
+           in the user_context. */
+        var html = document.documentElement,
+            htmlLang = (html.getAttribute('lang') || 'en_US').replace('-', '_'),
+            lang = this.user_context.lang || htmlLang;
+
+        return _t.database.load_translations(this, this.module_list, lang, this.translationURL);
     },
     load_css: function (files) {
         var self = this;
@@ -239,7 +246,14 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
             var route  = '/web/webclient/qweb/' + (cacheId ? cacheId : Date.now()) + '?mods=' + mods;
             return $.get(route).then(function (doc) {
                 if (!doc) { return; }
+                const owlTemplates = [];
+                for (let child of doc.querySelectorAll("templates > [owl]")) {
+                    child.removeAttribute('owl');
+                    owlTemplates.push(child.outerHTML);
+                    child.remove();
+                }
                 qweb.add_template(doc);
+                self.owlTemplates = `<templates> ${owlTemplates.join('\n')} </templates>`;
             });
         });
         return lock;

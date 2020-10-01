@@ -11,20 +11,22 @@ var AbstractController = require('web.AbstractController');
 var core = require('web.core');
 var Dialog = require('web.Dialog');
 var FieldManagerMixin = require('web.FieldManagerMixin');
-var Pager = require('web.Pager');
 var TranslationDialog = require('web.TranslationDialog');
 
 var _t = core._t;
 
 var BasicController = AbstractController.extend(FieldManagerMixin, {
+    events: Object.assign({}, AbstractController.prototype.events, {
+        'click .o_content': '_onContentClicked',
+    }),
     custom_events: _.extend({}, AbstractController.prototype.custom_events, FieldManagerMixin.custom_events, {
         discard_changes: '_onDiscardChanges',
+        pager_changed: '_onPagerChanged',
         reload: '_onReload',
         resequence_records: '_onResequenceRecords',
         set_dirty: '_onSetDirty',
         load_optional_fields: '_onLoadOptionalFields',
         save_optional_fields: '_onSaveOptionalFields',
-        sidebar_data_asked: '_onSidebarDataAsked',
         translate: '_onTranslate',
     }),
     /**
@@ -41,23 +43,25 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         this.hasButtons = params.hasButtons;
         FieldManagerMixin.init.call(this, this.model);
         this.mode = params.mode || 'readonly';
-        this.handle = this.initialState.id;
         // savingDef is used to ensure that we always wait for pending save
         // operations to complete before checking if there are changes to
         // discard when discardChanges is called
         this.savingDef = Promise.resolve();
+        // discardingDef is used to ensure that we don't ask twice the user if
+        // he wants to discard changes, when 'canBeDiscarded' is called several
+        // times "in parallel"
+        this.discardingDef = null;
         this.viewId = params.viewId;
     },
     /**
      * @override
      * @returns {Promise}
      */
-    start: function () {
+    start: async function () {
         // add classname to reflect the (absence of) access rights (used to
         // correctly display the nocontent helper)
         this.$el.toggleClass('o_cannot_create', !this.activeActions.create);
-        return this._super.apply(this, arguments)
-                          .then(this._updateEnv.bind(this));
+        await this._super(...arguments);
     },
 
     //--------------------------------------------------------------------------
@@ -78,21 +82,30 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
      */
     canBeDiscarded: function (recordID) {
         var self = this;
+        if (this.discardingDef) {
+            // discard dialog is already open
+            return this.discardingDef;
+        }
         if (!this.isDirty(recordID)) {
             return Promise.resolve(false);
         }
 
         var message = _t("The record has been modified, your changes will be discarded. Do you want to proceed?");
-        var def;
-        def = new Promise(function (resolve, reject) {
+        this.discardingDef = new Promise(function (resolve, reject) {
             var dialog = Dialog.confirm(self, message, {
                 title: _t("Warning"),
-                confirm_callback: resolve.bind(self, true),
-                cancel_callback: reject,
+                confirm_callback: () => {
+                    resolve(true);
+                    self.discardingDef = null;
+                },
+                cancel_callback: () => {
+                    reject();
+                    self.discardingDef = null;
+                },
             });
-            dialog.on('closed', def, reject);
+            dialog.on('closed', self.discardingDef, reject);
         });
-        return def;
+        return this.discardingDef;
     },
     /**
      * Ask the renderer if all associated field widget are in a valid state for
@@ -134,12 +147,6 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         return [];
     },
     /**
-     * Gives the focus to the renderer
-     */
-    giveFocus:function() {
-        this.renderer.giveFocus();
-    },
-    /**
      * Returns true iff the given recordID (or the main recordID) is dirty.
      *
      * @param {string} [recordID] - default to main recordID
@@ -147,35 +154,6 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
      */
     isDirty: function (recordID) {
         return this.model.isDirty(recordID || this.handle);
-    },
-    /**
-     * @override
-     */
-    renderPager: function ($node, options) {
-        var self = this;
-        var params = this._getPagerParams();
-        this.pager = new Pager(this, params.size, params.current_min, params.limit, options);
-
-        this.pager.on('pager_changed', this, function (newState) {
-            this.pager.disable();
-            var data = this.model.get(this.handle, {raw: true});
-            var limitChanged = (data.limit !== newState.limit);
-            var reloadParams;
-            if (data.groupedBy && data.groupedBy.length) {
-                reloadParams = {groupsLimit: newState.limit, groupsOffset: newState.current_min - 1};
-            } else {
-                reloadParams = {limit: newState.limit, offset: newState.current_min - 1};
-            }
-            this.reload(reloadParams).then(function () {
-                // reset the scroll position to the top on page changed only
-                if (!limitChanged) {
-                    self.trigger_up('scrollTo', {top: 0});
-                }
-            }).then(this.pager.enable.bind(this.pager));
-        });
-        return this.pager.appendTo($node).then(function () {
-            self._updatePager(); // to force proper visibility
-        });
     },
     /**
      * Saves the record whose ID is given if necessary (@see _saveRecord).
@@ -218,13 +196,9 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
      * @override
      * @returns {Promise}
      */
-    update: function (params, options) {
-        var self = this;
+    update: async function (params, options) {
         this.mode = params.mode || this.mode;
-        return this._super(params, options).then(function () {
-            self._updateEnv();
-            self._updatePager();
-        });
+        return this._super(params, options);
     },
     /**
      * @override
@@ -274,6 +248,25 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         });
     },
     /**
+     * Archive the current selection
+     *
+     * @private
+     * @param {number[]} ids
+     * @param {boolean} archive
+     * @returns {Promise}
+     */
+    _archive: async function (ids, archive) {
+        if (ids.length === 0) {
+            return Promise.resolve();
+        }
+        if (archive) {
+            await this.model.actionArchive(ids, this.handle);
+        } else {
+            await this.model.actionUnarchive(ids, this.handle);
+        }
+        return this.update({}, {reload: false});
+    },
+    /**
      * When the user clicks on a 'action button', this function determines what
      * should happen.
      *
@@ -283,31 +276,17 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
      * @returns {Promise}
      */
     _callButtonAction: function (attrs, record) {
-        var self = this;
-        var def = new Promise(function (resolve, reject) {
-            var reload = function () {
-                return self.isDestroyed() ? Promise.resolve() : self.reload();
-            };
-            record = record || self.model.get(self.handle);
-
-            self.trigger_up('execute_action', {
-                action_data: _.extend({}, attrs, {
-                    context: record.getContext({additionalContext: attrs.context || {}}),
-                }),
-                env: {
-                    context: record.getContext(),
-                    currentID: record.data.id,
-                    model: record.model,
-                    resIDs: record.res_ids,
-                },
-                on_success: resolve,
-                on_fail: function () {
-                    self.update({}, { reload: false }).then(reject).guardedCatch(reject);
-                },
-                on_closed: reload,
-            });
+        record = record || this.model.get(this.handle);
+        const actionData = Object.assign({}, attrs, {
+            context: record.getContext({additionalContext: attrs.context || {}})
         });
-        return this.alive(def);
+        const recordData = {
+            context: record.getContext(),
+            currentID: record.data.id,
+            model: record.model,
+            resIDs: record.res_ids,
+        };
+        return this._executeButtonAction(actionData, recordData);
     },
     /**
      * Called by the field manager mixin to confirm that a change just occured
@@ -362,9 +341,10 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
                 .then(self._onDeletedRecords.bind(self, ids));
         }
         if (this.confirmOnDelete) {
-            Dialog.confirm(this, _t("Are you sure you want to delete this record ?"), {
-                confirm_callback: doIt,
-            });
+            const message = ids.length > 1 ?
+                            _t("Are you sure you want to delete these records?") :
+                            _t("Are you sure you want to delete this record?");
+            Dialog.confirm(this, message, { confirm_callback: doIt });
         } else {
             doIt();
         }
@@ -429,6 +409,39 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         }
     },
     /**
+     * Executes the action associated with a button
+     *
+     * @private
+     * @param {Object} actionData: the descriptor of the action
+     * @param {string} actionData.type: the button's action's type, accepts "object" or "action"
+     * @param {string} actionData.name: the button's action's name
+     *    either the model method's name for type "object"
+     *    or the action's id in database, or xml_id
+     * @param {string} actionData.context: the action's execution context
+     *
+     * @param {Object} recordData: basic information on the current record(s)
+     * @param {number[]} recordData.resIDs: record ids:
+     *     - on which an object method applies
+     *     - that will be used as active_ids to load an action
+     * @param {string} recordData.model: model name
+     * @param {Object} recordData.context: the records' context, will be used to load
+     *     the action, and merged into actionData.context at execution time
+     *
+     * @returns {Promise}
+     */
+    async _executeButtonAction(actionData, recordData) {
+        const prom = new Promise((resolve, reject) => {
+            this.trigger_up('execute_action', {
+                action_data: actionData,
+                env: recordData,
+                on_closed: () => this.isDestroyed() ? Promise.resolve() : this.reload(),
+                on_success: resolve,
+                on_fail: () => this.update({}, { reload: false }).then(reject).guardedCatch(reject)
+            });
+        });
+        return this.alive(prom);
+    },
+    /**
      * Override to add the current record ID (currentId) and the list of ids
      * (resIds) in the current dataPoint to the exported state.
      *
@@ -486,43 +499,31 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         return viewIdentifier;
     },
     /**
-     * Return the params (current_min, limit and size) to pass to the pager,
+     * Return the params (currentMinimum, limit and size) to pass to the pager,
      * according to the current state.
      *
      * @private
      * @returns {Object}
      */
-    _getPagerParams: function () {
-        var state = this.model.get(this.handle, {raw: true});
-        var isGrouped = state.groupedBy && state.groupedBy.length;
+    _getPagingInfo: function (state) {
+        const isGrouped = state.groupedBy && state.groupedBy.length;
         return {
-            current_min: (isGrouped ? state.groupsOffset : state.offset) + 1,
+            currentMinimum: (isGrouped ? state.groupsOffset : state.offset) + 1,
             limit: isGrouped ? state.groupsLimit : state.limit,
             size: isGrouped ? state.groupsCount : state.count,
         };
     },
     /**
-     * Returns the new sidebar env
+     * Return the new actionMenus props.
      *
+     * @override
      * @private
-     * @return {Object} the new sidebar env
      */
-    _getSidebarEnv: function () {
+    _getActionMenuItems: function (state) {
         return {
-            context: this.model.get(this.handle).getContext(),
             activeIds: this.getSelectedIds(),
-            model: this.modelName,
+            context: state.getContext(),
         };
-    },
-    /**
-     * Determine whether or not the pager must be displayed (probably depending
-     * on the current state). Controllers must override this to implement their
-     * own logic.
-     *
-     * @private
-     */
-    _isPagerVisible: function () {
-        return true;
     },
     /**
      *  Sort function used to sort the fields by names, to compute the optional fields keys
@@ -550,7 +551,7 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         });
         warnings.unshift('<ul>');
         warnings.push('</ul>');
-        this.do_warn(_t("The following fields are invalid:"), warnings.join(''));
+        this.do_warn(_t("Invalid fields:"), warnings.join(''));
     },
     /**
      * Hook method, called when record(s) has been deleted.
@@ -629,34 +630,51 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
         return Promise.resolve();
     },
     /**
+     * To override such that it returns true iff the primary action button must
+     * bounce when the user clicked on the given element, according to the
+     * current state of the view.
+     *
+     * @private
+     * @param {HTMLElement} element the node the user clicked on
+     * @returns {boolean}
+     */
+    _shouldBounceOnClick: function (/* element */) {
+        return false;
+    },
+    /**
      * Helper method, to get the current environment variables from the model
      * and notifies the component chain (by bubbling an event up)
      *
      * @private
+     * @param {Object} [newProps={}]
      */
-    _updateEnv: function () {
-        var env = this.model.get(this.handle, {env: true});
-        if (this.sidebar) {
-            var sidebarEnv = this._getSidebarEnv();
-            this.sidebar.updateEnv(sidebarEnv);
-        }
-    },
-    /**
-     * Update the pager with the current state.
-     *
-     * @private
-     */
-    _updatePager: function () {
-        if (this.pager) {
-            this.pager.updateState(this._getPagerParams());
-            this.pager.do_toggle(this._isPagerVisible());
-        }
+    _updateControlPanel: function (newProps = {}) {
+        const state = this.model.get(this.handle);
+        const props = Object.assign(newProps, {
+            actionMenus: this._getActionMenuItems(state),
+            pager: this._getPagingInfo(state),
+            title: this.getTitle(),
+        });
+        return this.updateControlPanel(props);
     },
 
     //--------------------------------------------------------------------------
     // Handlers
     //--------------------------------------------------------------------------
 
+    /**
+     * Called when the user clicks on the 'content' part of the controller
+     * (typically the renderer area). Makes the first primary button in the
+     * control panel bounce, in some situations (see _shouldBounceOnClick).
+     *
+     * @private
+     * @param {MouseEvent} ev
+     */
+    _onContentClicked(ev) {
+        if (this.$buttons && this._shouldBounceOnClick(ev.target)) {
+            this.$buttons.find('.btn-primary:visible:first').odooBounce();
+        }
+    },
     /**
      * Called when a list element asks to discard the changes made to one of
      * its rows.  It can happen with a x2many (if we are in a form view) or with
@@ -692,6 +710,27 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
             ev.data.force_save = true;
         }
         FieldManagerMixin._onFieldChanged.apply(this, arguments);
+    },
+    /**
+     * @private
+     * @param {OdooEvent} ev
+     */
+    _onPagerChanged: async function (ev) {
+        ev.stopPropagation();
+        const { currentMinimum, limit } = ev.data;
+        const state = this.model.get(this.handle, { raw: true });
+        const reloadParams = state.groupedBy && state.groupedBy.length ? {
+                groupsLimit: limit,
+                groupsOffset: currentMinimum - 1,
+            } : {
+                limit,
+                offset: currentMinimum - 1,
+            };
+        await this.reload(reloadParams);
+        // reset the scroll position to the top on page changed only
+        if (state.limit === limit) {
+            this.trigger_up('scrollTo', { top: 0 });
+        }
     },
     /**
      * When a reload event triggers up, we need to reload the full view.
@@ -735,24 +774,20 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
      * @param {string} ev.data.handleField
      */
     _onResequenceRecords: function (ev) {
-        var self = this;
-
+        ev.stopPropagation(); // prevent other controllers from handling this request
         this.trigger_up('mutexify', {
-            action: function () {
-                var state = self.model.get(self.handle);
-                var resIDs = _.map(ev.data.recordIds, function (recordID) {
-                    return _.findWhere(state.data, {id: recordID}).res_id;
-                });
-                var options = {
+            action: async () => {
+                let state = this.model.get(this.handle);
+                const resIDs = ev.data.recordIds
+                    .map(recordID => state.data.find(d => d.id === recordID).res_id);
+                const options = {
                     offset: ev.data.offset,
                     field: ev.data.handleField,
                 };
-                return self.model.resequence(self.modelName, resIDs, self.handle, options)
-                    .then(function () {
-                        self._updateEnv();
-                        state = self.model.get(self.handle);
-                        return self.renderer.updateState(state, {noRender: true});
-                    });
+                await this.model.resequence(this.modelName, resIDs, this.handle, options);
+                this._updateControlPanel();
+                state = this.model.get(this.handle);
+                return this._updateRendererState(state, { noRender: true });
             },
         });
     },
@@ -796,17 +831,6 @@ var BasicController = AbstractController.extend(FieldManagerMixin, {
     _onSetDirty: function (ev) {
         ev.stopPropagation(); // prevent other controllers from handling this request
         this.model.setDirty(ev.data.dataPointID);
-    },
-    /**
-     * Handler used to get all the data necessary when a custom action is
-     * performed through the sidebar.
-     *
-     * @private
-     * @param {OdooEvent} ev
-     */
-    _onSidebarDataAsked: function (ev) {
-        var sidebarEnv = this._getSidebarEnv();
-        ev.data.callback(sidebarEnv);
     },
     /**
      * open the translation view for the current field

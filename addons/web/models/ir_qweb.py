@@ -21,6 +21,41 @@ class Image(models.AbstractModel):
     _description = 'Qweb Field Image'
     _inherit = 'ir.qweb.field.image'
 
+    def _get_src_urls(self, record, field_name, options):
+        """Considering the rendering options, returns the src and data-zoom-image urls.
+
+        :return: src, src_zoom urls
+        :rtype: tuple
+        """
+        max_size = None
+        if options.get('resize'):
+            max_size = options.get('resize')
+        else:
+            max_width, max_height = options.get('max_width', 0), options.get('max_height', 0)
+            if max_width or max_height:
+                max_size = '%sx%s' % (max_width, max_height)
+
+        sha = hashlib.sha512(str(getattr(record, '__last_update')).encode('utf-8')).hexdigest()[:7]
+        max_size = '' if max_size is None else '/%s' % max_size
+
+        if options.get('filename-field') and getattr(record, options['filename-field'], None):
+            filename = record[options['filename-field']]
+        elif options.get('filename'):
+            filename = options['filename']
+        else:
+            filename = record.display_name
+        filename = filename.replace('/', '-').replace('\\', '-').replace('..', '--')
+
+        src = '/web/image/%s/%s/%s%s/%s?unique=%s' % (record._name, record.id, options.get('preview_image', field_name), max_size, url_quote(filename), sha)
+
+        src_zoom = None
+        if options.get('zoom') and getattr(record, options['zoom'], None):
+            src_zoom = '/web/image/%s/%s/%s%s/%s?unique=%s' % (record._name, record.id, options['zoom'], max_size, url_quote(filename), sha)
+        elif options.get('zoom'):
+            src_zoom = options['zoom']
+
+        return src, src_zoom
+
     @api.model
     def record_to_html(self, record, field_name, options):
         assert options['tagName'] != 'img',\
@@ -35,26 +70,7 @@ class Image(models.AbstractModel):
         aclasses += options.get('class', '').split()
         classes = ' '.join(map(escape, aclasses))
 
-        max_size = None
-        if options.get('resize'):
-            max_size = options.get('resize')
-        else:
-            max_width, max_height = options.get('max_width', 0), options.get('max_height', 0)
-            if max_width or max_height:
-                max_size = '%sx%s' % (max_width, max_height)
-
-        sha = hashlib.sha1(str(getattr(record, '__last_update')).encode('utf-8')).hexdigest()[0:7]
-        max_size = '' if max_size is None else '/%s' % max_size
-
-        if options.get('filename-field') and getattr(record, options['filename-field'], None):
-            filename = record[options['filename-field']]
-        elif options.get('filename'):
-            filename = options['filename']
-        else:
-            filename = record.display_name
-        filename = filename.replace('/', '-').replace('\\', '-')
-
-        src = '/web/image/%s/%s/%s%s/%s?unique=%s' % (record._name, record.id, options.get('preview_image', field_name), max_size, url_quote(filename), sha)
+        src, src_zoom = self._get_src_urls(record, field_name, options)
 
         if options.get('alt-field') and getattr(record, options['alt-field'], None):
             alt = escape(record[options['alt-field']])
@@ -62,12 +78,6 @@ class Image(models.AbstractModel):
             alt = options['alt']
         else:
             alt = escape(record.display_name)
-
-        src_zoom = None
-        if options.get('zoom') and getattr(record, options['zoom'], None):
-            src_zoom = '/web/image/%s/%s/%s%s/%s?unique=%s' % (record._name, record.id, options['zoom'], max_size, url_quote(filename), sha)
-        elif options.get('zoom'):
-            src_zoom = options['zoom']
 
         itemprop = None
         if options.get('itemprop'):
@@ -96,3 +106,11 @@ class Image(models.AbstractModel):
         img.append('/>')
 
         return u''.join(img)
+
+class ImageUrlConverter(models.AbstractModel):
+    _description = 'Qweb Field Image'
+    _inherit = 'ir.qweb.field.image_url'
+
+    def _get_src_urls(self, record, field_name, options):
+        image_url = record[options.get('preview_image', field_name)]
+        return image_url, options.get("zoom", None)

@@ -30,7 +30,7 @@ var DateWidget = Widget.extend({
         this.options = _.extend({
             locale: moment.locale(),
             format : this.type_of_date === 'datetime' ? time.getLangDatetimeFormat() : time.getLangDateFormat(),
-            minDate: moment({ y: 1900 }),
+            minDate: moment({ y: 1 }),
             maxDate: moment({ y: 9999, M: 11, d: 31 }),
             useCurrent: false,
             icons: {
@@ -41,7 +41,7 @@ var DateWidget = Widget.extend({
                 previous: 'fa fa-chevron-left',
                 next: 'fa fa-chevron-right',
                 today: 'fa fa-calendar-check-o',
-                clear: 'fa fa-delete',
+                clear: 'fa fa-trash',
                 close: 'fa fa-check primary',
             },
             calendarWeeks: true,
@@ -75,7 +75,7 @@ var DateWidget = Widget.extend({
      */
     destroy: function () {
         if (this._onScroll) {
-            window.removeEventListener('scroll', this._onScroll, true);
+            window.removeEventListener('wheel', this._onScroll, true);
         }
         this.__libInput++;
         this.$el.datetimepicker('destroy');
@@ -183,9 +183,7 @@ var DateWidget = Widget.extend({
         this.set({'value': value});
         var formatted_value = value ? this._formatClient(value) : null;
         this.$input.val(formatted_value);
-        this.__libInput++;
-        this.$el.datetimepicker('date', value || null);
-        this.__libInput--;
+        this._setLibInputValue(value);
     },
 
     //--------------------------------------------------------------------------
@@ -203,7 +201,7 @@ var DateWidget = Widget.extend({
             this.$warning = $('<span>', {
                 class: 'fa fa-exclamation-triangle o_tz_warning o_datepicker_warning',
             });
-            var title = _t("This date is on the future. Make sure it is what you expected.");
+            var title = _t("This date is in the future. Make sure this is what you expect.");
             this.$warning.attr('title', title);
             this.$input.after(this.$warning);
         }
@@ -230,6 +228,15 @@ var DateWidget = Widget.extend({
      */
     _parseClient: function (v) {
         return field_utils.parse[this.type_of_date](v, null, {timezone: false});
+    },
+    /**
+     * @private
+     * @param {Moment|false} value
+     */
+    _setLibInputValue: function (value) {
+        this.__libInput++;
+        this.$el.datetimepicker('date', value || null);
+        this.__libInput--;
     },
     /**
      * @private
@@ -263,7 +270,7 @@ var DateWidget = Widget.extend({
         this.__isOpen = false;
         this.changeDatetime();
         if (this._onScroll) {
-            window.removeEventListener('scroll', this._onScroll, true);
+            window.removeEventListener('wheel', this._onScroll, true);
         }
         this.changeDatetime();
     },
@@ -287,7 +294,7 @@ var DateWidget = Widget.extend({
                 self.__libInput--;
             }
         };
-        window.addEventListener('scroll', this._onScroll, true);
+        window.addEventListener('wheel', this._onScroll, true);
     },
     /**
      * @private

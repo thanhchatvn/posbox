@@ -2,7 +2,6 @@ odoo.define('web.KanbanView', function (require) {
 "use strict";
 
 var BasicView = require('web.BasicView');
-var config = require('web.config');
 var core = require('web.core');
 var KanbanController = require('web.KanbanController');
 var kanbanExamplesRegistry = require('web.kanban_examples_registry');
@@ -32,9 +31,7 @@ var KanbanView = BasicView.extend({
         this._super.apply(this, arguments);
 
         this.loadParams.limit = this.loadParams.limit || 40;
-        // in mobile, columns are lazy-loaded, so set 'openGroupByDefault' to
-        // false so that they will won't be loaded by the initial load
-        this.loadParams.openGroupByDefault = config.device.isMobile ? false : true;
+        this.loadParams.openGroupByDefault = true;
         this.loadParams.type = 'list';
         this.noDefaultGroupby = params.noDefaultGroupby;
         var progressBar;
@@ -63,7 +60,7 @@ var KanbanView = BasicView.extend({
             editable: activeActions.group_edit,
             deletable: activeActions.group_delete,
             archivable: archAttrs.archivable ? !!JSON.parse(archAttrs.archivable) : true,
-            group_creatable: activeActions.group_create && !config.device.isMobile,
+            group_creatable: activeActions.group_create,
             quickCreateView: archAttrs.quick_create_view || null,
             recordsDraggable: archAttrs.records_draggable ? !!JSON.parse(archAttrs.records_draggable) : true,
             hasProgressBar: !!progressBar,
@@ -84,12 +81,6 @@ var KanbanView = BasicView.extend({
         this.controllerParams.on_create = archAttrs.on_create;
         this.controllerParams.hasButtons = !params.selectionMode ? true : false;
         this.controllerParams.quickCreateEnabled = this.rendererParams.quickCreateEnabled;
-
-
-        if (config.device.isMobile) {
-            this.jsLibs.push('/web/static/lib/jquery.touchSwipe/jquery.touchSwipe.js');
-        }
-
     },
 
     //--------------------------------------------------------------------------
@@ -117,11 +108,8 @@ var KanbanView = BasicView.extend({
      */
     _updateMVCParams: function () {
         this._super.apply(this, arguments);
-        if (!this.noDefaultGroupby) {
-            var defaultGroupBy = this.arch.attrs.default_group_by;
-            this.loadParams.groupBy = defaultGroupBy ?
-                                        [defaultGroupBy] :
-                                        (this.loadParams.groupedBy || []);
+        if (this.searchMenuTypes.includes('groupBy') && !this.noDefaultGroupby && this.arch.attrs.default_group_by) {
+            this.loadParams.groupBy = [this.arch.attrs.default_group_by];
         }
     },
 });

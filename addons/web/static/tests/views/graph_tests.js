@@ -1,24 +1,54 @@
 odoo.define('web.graph_view_tests', function (require) {
 "use strict";
 
-var concurrency = require('web.concurrency');
-var controlPanelViewParameters = require('web.controlPanelViewParameters');
+var searchUtils = require('web.searchUtils');
 var GraphView = require('web.GraphView');
 var testUtils = require('web.test_utils');
+const { sortBy } = require('web.utils');
 
-var createActionManager = testUtils.createActionManager;
+const cpHelpers = testUtils.controlPanel;
 var createView = testUtils.createView;
 var patchDate = testUtils.mock.patchDate;
 
-var INTERVAL_OPTIONS = controlPanelViewParameters.INTERVAL_OPTIONS.map(o => o.optionId);
-var TIME_RANGE_OPTIONS = controlPanelViewParameters.TIME_RANGE_OPTIONS.map(o => o.optionId);
-var COMPARISON_TIME_RANGE_OPTIONS = controlPanelViewParameters.COMPARISON_TIME_RANGE_OPTIONS.map(o => o.optionId);
+const { INTERVAL_OPTIONS, PERIOD_OPTIONS, COMPARISON_OPTIONS } = searchUtils;
+
+var INTERVAL_OPTION_IDS = Object.keys(INTERVAL_OPTIONS);
+
+const yearIds = [];
+const otherIds = [];
+for (const id of Object.keys(PERIOD_OPTIONS)) {
+    const option = PERIOD_OPTIONS[id];
+    if (option.granularity === 'year') {
+        yearIds.push(id);
+    } else {
+        otherIds.push(id);
+    }
+}
+const BASIC_DOMAIN_IDS = [];
+for (const yearId of yearIds) {
+    BASIC_DOMAIN_IDS.push(yearId);
+    for (const id of otherIds) {
+        BASIC_DOMAIN_IDS.push(`${yearId}__${id}`);
+    }
+}
+const GENERATOR_INDEXES = {};
+let index = 0;
+for (const id of Object.keys(PERIOD_OPTIONS)) {
+    GENERATOR_INDEXES[id] = index++;
+}
+
+const COMPARISON_OPTION_IDS = Object.keys(COMPARISON_OPTIONS);
+const COMPARISON_OPTION_INDEXES = {};
+index = 0;
+for (const comparisonOptionId of COMPARISON_OPTION_IDS) {
+    COMPARISON_OPTION_INDEXES[comparisonOptionId] = index++;
+}
 
 var f = (a, b) => [].concat(...a.map(d => b.map(e => [].concat(d, e))));
 var cartesian = (a, b, ...c) => (b ? cartesian(f(a, b), ...c) : a);
 
-var COMBINATIONS = cartesian(TIME_RANGE_OPTIONS, COMPARISON_TIME_RANGE_OPTIONS);
-var COMBINATIONS_WITH_DATE = cartesian(TIME_RANGE_OPTIONS, COMPARISON_TIME_RANGE_OPTIONS, INTERVAL_OPTIONS);
+var COMBINATIONS = cartesian(COMPARISON_OPTION_IDS, BASIC_DOMAIN_IDS);
+var COMBINATIONS_WITH_DATE = cartesian(COMPARISON_OPTION_IDS, BASIC_DOMAIN_IDS, INTERVAL_OPTION_IDS);
 
 QUnit.assert.checkDatasets = function (graph, keys, expectedDatasets) {
     keys = keys instanceof Array ? keys : [keys];
@@ -67,16 +97,17 @@ QUnit.module('Views', {
                     product_id: {string: "Product", type: "many2one", relation: 'product', store: true},
                     color_id: {string: "Color", type: "many2one", relation: 'color'},
                     date: {string: "Date", type: 'date', store: true, sortable: true},
+                    revenue: {string: "Revenue", type: 'integer', store: true},
                 },
                 records: [
-                    {id: 1, foo: 3, bar: true, product_id: 37, date: "2016-01-01"},
-                    {id: 2, foo: 53, bar: true, product_id: 37, color_id: 7, date: "2016-01-03"},
-                    {id: 3, foo: 2, bar: true, product_id: 37, date: "2016-03-04"},
-                    {id: 4, foo: 24, bar: false, product_id: 37, date: "2016-03-07"},
-                    {id: 5, foo: 4, bar: false, product_id: 41, date: "2016-05-01"},
+                    {id: 1, foo: 3, bar: true, product_id: 37, date: "2016-01-01", revenue: 1},
+                    {id: 2, foo: 53, bar: true, product_id: 37, color_id: 7, date: "2016-01-03", revenue: 2},
+                    {id: 3, foo: 2, bar: true, product_id: 37, date: "2016-03-04", revenue: 3},
+                    {id: 4, foo: 24, bar: false, product_id: 37, date: "2016-03-07", revenue: 4},
+                    {id: 5, foo: 4, bar: false, product_id: 41, date: "2016-05-01", revenue: 5},
                     {id: 6, foo: 63, bar: false, product_id: 41},
                     {id: 7, foo: 42, bar: false, product_id: 41},
-                    {id: 8, foo: 48, bar: false, product_id: 41, date: "2016-04-01"},
+                    {id: 8, foo: 48, bar: false, product_id: 41, date: "2016-04-01", revenue: 8},
                 ]
             },
             product: {
@@ -192,7 +223,7 @@ QUnit.module('Views', {
                         'groupby should not contain id field');
                 }
                 return this._super.apply(this, arguments);
-            }
+            },
         });
         graph.destroy();
     });
@@ -298,9 +329,9 @@ QUnit.module('Views', {
                 return this._super(route, args);
             },
         });
+        await cpHelpers.toggleMenu(graph, "Measures");
+        await cpHelpers.toggleMenuItem(graph, "Foo");
 
-        testUtils.dom.click(graph.$buttons.find('.dropdown-toggle:contains(Measures)'));
-        await testUtils.dom.click(graph.$buttons.find('.dropdown-item[data-field="foo"]'));
         assert.checkLegend(graph, 'Foo');
         assert.strictEqual(rpcCount, 2, "should have done 2 rpcs (2 readgroups)");
 
@@ -308,43 +339,53 @@ QUnit.module('Views', {
     });
 
     QUnit.test('no content helper (bar chart)', async function (assert) {
-        assert.expect(2);
+        assert.expect(3);
         this.data.foo.records = [];
 
         var graph = await createView({
             View: GraphView,
             model: "foo",
             data: this.data,
-            arch: '<graph string="Gloups">' +
-                        '<field name="product_id"/>' +
-                '</graph>',
+            arch: `
+                <graph string="Gloups">
+                    <field name="product_id"/>
+                </graph>`,
+            viewOptions: {
+                action: {
+                    help: '<p class="abc">This helper should not be displayed in graph views</p>'
+                }
+            },
         });
 
-        assert.containsNone(graph, 'div.o_graph_canvas_container canvas',
-                    "should not contain a div with a canvas element");
-        assert.containsOnce(graph, 'div.o_view_nocontent',
-            "should display the no content helper");
+        assert.containsOnce(graph, 'div.o_graph_canvas_container canvas');
+        assert.containsNone(graph, 'div.o_view_nocontent');
+        assert.containsNone(graph, '.abc');
 
         graph.destroy();
     });
 
     QUnit.test('no content helper (pie chart)', async function (assert) {
-        assert.expect(2);
-        this.data.foo.records =  []
+        assert.expect(3);
+        this.data.foo.records =  [];
 
         var graph = await createView({
             View: GraphView,
             model: "foo",
             data: this.data,
-            arch: '<graph type="pie">' +
-                        '<field name="product_id"/>' +
-                '</graph>',
+            arch: `
+                <graph type="pie">
+                    <field name="product_id"/>
+                </graph>`,
+            viewOptions: {
+                action: {
+                    help: '<p class="abc">This helper should not be displayed in graph views</p>'
+                }
+            },
         });
 
-        assert.containsNone(graph, 'div.o_graph_canvas_container canvas',
-            "should not contain a div with a canvas element");
-        assert.containsOnce(graph, 'div.o_view_nocontent',
-            "should display the no content helper");
+        assert.containsOnce(graph, 'div.o_graph_canvas_container canvas');
+        assert.containsNone(graph, 'div.o_view_nocontent');
+        assert.containsNone(graph, '.abc');
 
         graph.destroy();
     });
@@ -352,54 +393,64 @@ QUnit.module('Views', {
     QUnit.test('render pie chart in comparison mode', async function (assert) {
         assert.expect(2);
 
+        const unpatchDate = patchDate(2020, 4, 19, 1, 0, 0);
+
         var graph = await createView({
             View: GraphView,
             model: "foo",
             data: this.data,
-            context: {
-                timeRangeMenuData: {
-                    //Q3 2018
-                    timeRange: ['&', ["date", ">=", "2018-07-01"],["date", "<=", "2018-09-30"]],
-                    timeRangeDescription: 'This Quarter',
-                    //Q4 2018
-                    comparisonTimeRange: ['&', ["date", ">=", "2018-10-01"],["date", "<=", "2018-12-31"]],
-                    comparisonTimeRangeDescription: 'Previous Period',
-                },
-            },
+            context: { search_default_date_filter: 1, },
             arch: '<graph type="pie">' +
                         '<field name="product_id"/>' +
                 '</graph>',
+            archs: {
+                'foo,false,search': `
+                    <search>
+                        <filter name="date_filter" domain="[]" date="date" default_period="third_quarter"/>
+                    </search>
+                `,
+            },
         });
+
+        await cpHelpers.toggleComparisonMenu(graph);
+        await cpHelpers.toggleMenuItem(graph, 'Date: Previous period');
 
         assert.containsNone(graph, 'div.o_view_nocontent',
         "should not display the no content helper");
         assert.checkLegend(graph, 'No data');
 
+        unpatchDate();
         graph.destroy();
     });
 
     QUnit.test('no content helper after update', async function (assert) {
-        assert.expect(4);
+        assert.expect(6);
 
         var graph = await createView({
             View: GraphView,
             model: "foo",
             data: this.data,
-            arch: '<graph string="Gloups">' +
-                        '<field name="product_id"/>' +
-                '</graph>',
+            arch: `
+                <graph string="Gloups">
+                    <field name="product_id"/>
+                </graph>`,
+            viewOptions: {
+                action: {
+                    help: '<p class="abc">This helper should not be displayed in graph views</p>'
+                }
+            },
         });
 
-        assert.containsOnce(graph, 'div.o_graph_canvas_container canvas',
-                    "should contain a div with a canvas element");
-        assert.containsNone(graph, 'div.o_view_nocontent',
-            "should not display the no content helper");
+        assert.containsOnce(graph, 'div.o_graph_canvas_container canvas');
+        assert.containsNone(graph, 'div.o_view_nocontent');
+        assert.containsNone(graph, '.abc');
 
-        await testUtils.graph.reload(graph, {domain: [['product_id', '=', 4]]});
-        assert.containsNone(graph, 'div.o_graph_canvas_container canvas',
-                    "should not contain a div with a canvas element");
-        assert.containsOnce(graph, 'div.o_view_nocontent',
-            "should display the no content helper");
+        await testUtils.graph.reload(graph, {domain: [['product_id', '<', 0]]});
+
+        assert.containsOnce(graph, 'div.o_graph_canvas_container canvas');
+        assert.containsNone(graph, 'div.o_view_nocontent');
+        assert.containsNone(graph, '.abc');
+
         graph.destroy();
     });
 
@@ -443,8 +494,9 @@ QUnit.module('Views', {
             }
         }, "context should be correct");
 
-        testUtils.dom.click(graph.$buttons.find('.dropdown-toggle:contains(Measures)'));
-        await testUtils.dom.click(graph.$buttons.find('.dropdown-item[data-field="foo"]'));
+        await cpHelpers.toggleMenu(graph, "Measures");
+        await cpHelpers.toggleMenuItem(graph, "Foo");
+
         assert.deepEqual(graph.getOwnedQueryParams(), {
             context: {
                 graph_mode: 'bar',
@@ -567,7 +619,7 @@ QUnit.module('Views', {
         assert.hasClass(graph.$buttons.find('button[data-mode="line"]'),'active',
             'line chart button should be active');
         // check groupby values ('Undefined' is rejected in line chart) are in labels
-        assert.checkLabels(graph, [['red'], ['black']])
+        assert.checkLabels(graph, [['red'], ['black']]);
 
         graph.destroy();
     });
@@ -687,10 +739,11 @@ QUnit.module('Views', {
                 additionalMeasures: ['product_id'],
             },
         });
+
         // need to set the measure this way because it cannot be set in the
         // arch.
-        await testUtils.dom.click(graph.$buttons.find('.dropdown-toggle:contains(Measures)'));
-        await testUtils.dom.click(graph.$buttons.find('.dropdown-item[data-field="product_id"]'));
+        await cpHelpers.toggleMenu(graph, "Measures");
+        await cpHelpers.toggleMenuItem(graph, "Product");
 
         assert.checkLabels(graph, [['xphone'], ['xpad']]);
         assert.checkLegend(graph, 'Product');
@@ -729,9 +782,57 @@ QUnit.module('Views', {
                 additionalMeasures: ['product_id'],
             },
         });
-        assert.ok(graph.measures.product_id,
+
+        assert.ok(graph.measures.find(m => m.fieldName === 'product_id'),
             "should have product_id as measure");
+
         graph.destroy();
+    });
+
+    QUnit.test('measure dropdown consistency', async function (assert) {
+        assert.expect(2);
+
+        const actionManager = await testUtils.createActionManager({
+            archs: {
+                'foo,false,graph': `
+                    <graph string="Partners" type="bar">
+                        <field name="foo" type="measure"/>
+                    </graph>`,
+                'foo,false,search': `<search/>`,
+                'foo,false,kanban': `
+                    <kanban>
+                        <templates>
+                            <div t-name="kanban-box">
+                                <field name="foo"/>
+                            </div>
+                        </templates>
+                    </kanban>`,
+            },
+            data: this.data,
+        });
+        await actionManager.doAction({
+            res_model: 'foo',
+            type: 'ir.actions.act_window',
+            views: [[false, 'graph'], [false, 'kanban']],
+            flags: {
+                graph: {
+                    additionalMeasures: ['product_id'],
+                }
+            },
+        });
+
+        assert.containsOnce(actionManager, '.o_control_panel .o_graph_measures_list',
+            "Measures dropdown is present at init"
+        );
+
+        await cpHelpers.switchView(actionManager, 'kanban');
+        await cpHelpers.switchView(actionManager, 'graph');
+
+        assert.containsOnce(actionManager, '.o_control_panel .o_graph_measures_list',
+            "Measures dropdown is present after reload"
+        );
+
+        actionManager.destroy();
     });
 
     QUnit.test('graph view crash when moving from search view using Down key', async function (assert) {
@@ -745,7 +846,7 @@ QUnit.module('Views', {
                         '<field name="bar"/>' +
                 '</graph>',
         });
-        graph.renderer.giveFocus();
+        graph._giveFocus();
         assert.ok(true,"should not generate any error");
         graph.destroy();
     });
@@ -766,9 +867,10 @@ QUnit.module('Views', {
                   '</graph>',
         });
 
-        assert.strictEqual(graph.$buttons.find('.o_graph_measures_list .dropdown-item:first').data('field'), 'bouh',
+        await cpHelpers.toggleMenu(graph, "Measures");
+        assert.strictEqual(graph.$buttons.find('.o_graph_measures_list .dropdown-item:first').text(), 'bouh',
             "Bouh should be the first measure");
-        assert.strictEqual(graph.$buttons.find('.o_graph_measures_list .dropdown-item:last').data('field'), '__count__',
+        assert.strictEqual(graph.$buttons.find('.o_graph_measures_list .dropdown-item:last').text(), 'Count',
             "Count should be the last measure");
 
         graph.destroy();
@@ -788,7 +890,7 @@ QUnit.module('Views', {
         });
 
         function _indexOf (label) {
-            return graph.renderer._indexOf(graph.renderer.chart.data.labels, label)
+            return graph.renderer._indexOf(graph.renderer.chart.data.labels, label);
         }
 
         assert.strictEqual(_indexOf(['Undefined']), -1);
@@ -816,7 +918,7 @@ QUnit.module('Views', {
         });
 
         function _indexOf (label) {
-            return graph.renderer._indexOf(graph.renderer.chart.data.labels, label)
+            return graph.renderer._indexOf(graph.renderer.chart.data.labels, label);
         }
 
         assert.strictEqual(_indexOf(['Undefined']), -1);
@@ -825,7 +927,7 @@ QUnit.module('Views', {
         assert.ok(_indexOf(['Undefined']) >= 0);
 
         await testUtils.dom.click(graph.$buttons.find('.o_graph_button[data-mode=pie]'));
-        var labels = graph.renderer.chart.data.labels
+        var labels = graph.renderer.chart.data.labels;
         assert.ok(labels.filter(label => /Undefined/.test(label.join(''))).length >= 1);
 
         // Undefined should not appear after switching back to line chart
@@ -908,7 +1010,7 @@ QUnit.module('Views', {
             groupBy: ['product_id', 'color_id'],
         });
 
-        assert.checkLabels(graph, [['xphone'], ['xpad']])
+        assert.checkLabels(graph, [['xphone'], ['xpad']]);
         assert.checkLegend(graph, ['Undefined', 'red']);
         assert.checkDatasets(graph, ['label', 'data'], [
             {
@@ -922,7 +1024,7 @@ QUnit.module('Views', {
         ]);
 
         await testUtils.dom.click(graph.$('.o_graph_button[data-mode=line]'));
-        assert.checkLabels(graph, [['xphone'], ['xpad']])
+        assert.checkLabels(graph, [['xphone'], ['xpad']]);
         assert.checkLegend(graph, ['Undefined', 'red']);
         assert.checkDatasets(graph, ['label', 'data'], [
             {
@@ -936,7 +1038,7 @@ QUnit.module('Views', {
         ]);
 
         await testUtils.dom.click(graph.$('.o_graph_button[data-mode=pie]'));
-        assert.checkLabels(graph, [['xphone', 'Undefined'], ['xphone', 'red'], ['xpad', 'Undefined']])
+        assert.checkLabels(graph, [['xphone', 'Undefined'], ['xphone', 'red'], ['xpad', 'Undefined']]);
         assert.checkLegend(graph, ['xphone/Undefined', 'xphone/red', 'xpad/Undefined']);
         assert.checkDatasets(graph, ['label', 'data'], {
                 label: '',
@@ -975,6 +1077,410 @@ QUnit.module('Views', {
         graph.destroy();
     });
 
+    QUnit.test('clicking on bar and pie charts triggers a do_action', async function (assert) {
+        assert.expect(5);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: '<graph string="Foo Analysis"><field name="bar"/></graph>',
+            intercepts: {
+                do_action: function (ev) {
+                    assert.deepEqual(ev.data.action, {
+                        context: {},
+                        domain: [["bar", "=", true]],
+                        name: "Foo Analysis",
+                        res_model: "foo",
+                        target: 'current',
+                        type: 'ir.actions.act_window',
+                        view_mode: 'list',
+                        views: [[false, 'list'], [false, 'form']],
+                    }, "should trigger do_action with correct action parameter");
+                }
+            },
+        });
+        await testUtils.nextTick(); // wait for the graph to be rendered
+
+        // bar mode
+        assert.strictEqual(graph.renderer.state.mode, "bar", "should be in bar chart mode");
+        assert.checkDatasets(graph, ['domain'], {
+            domain: [[["bar", "=", true]], [["bar", "=", false]]],
+        });
+
+        let myChart = graph.renderer.chart;
+        let meta = myChart.getDatasetMeta(0);
+        let rectangle = myChart.canvas.getBoundingClientRect();
+        let point = meta.data[0].getCenterPoint();
+        await testUtils.dom.triggerEvent(myChart.canvas, 'click', {
+            pageX: rectangle.left + point.x,
+            pageY: rectangle.top + point.y
+        });
+
+        // pie mode
+        await testUtils.dom.click(graph.$('.o_graph_button[data-mode=pie]'));
+        assert.strictEqual(graph.renderer.state.mode, "pie", "should be in pie chart mode");
+
+        myChart = graph.renderer.chart;
+        meta = myChart.getDatasetMeta(0);
+        rectangle = myChart.canvas.getBoundingClientRect();
+        point = meta.data[0].getCenterPoint();
+        await testUtils.dom.triggerEvent(myChart.canvas, 'click', {
+            pageX: rectangle.left + point.x,
+            pageY: rectangle.top + point.y
+        });
+
+        graph.destroy();
+    });
+
+    QUnit.test('clicking charts trigger a do_action with correct views', async function (assert) {
+        assert.expect(3);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: '<graph string="Foo Analysis"><field name="bar"/></graph>',
+            intercepts: {
+                do_action: function (ev) {
+                    assert.deepEqual(ev.data.action, {
+                        context: {},
+                        domain: [["bar", "=", true]],
+                        name: "Foo Analysis",
+                        res_model: "foo",
+                        target: 'current',
+                        type: 'ir.actions.act_window',
+                        view_mode: 'list',
+                        views: [[364, 'list'], [29, 'form']],
+                    }, "should trigger do_action with correct action parameter");
+                }
+            },
+            viewOptions: {
+                actionViews: [{
+                    type: 'list',
+                    viewID: 364,
+                }, {
+                    type: 'form',
+                    viewID: 29,
+                }],
+            },
+        });
+        await testUtils.nextTick(); // wait for the graph to be rendered
+
+        assert.strictEqual(graph.renderer.state.mode, "bar", "should be in bar chart mode");
+        assert.checkDatasets(graph, ['domain'], {
+            domain: [[["bar", "=", true]], [["bar", "=", false]]],
+        });
+
+        let myChart = graph.renderer.chart;
+        let meta = myChart.getDatasetMeta(0);
+        let rectangle = myChart.canvas.getBoundingClientRect();
+        let point = meta.data[0].getCenterPoint();
+        await testUtils.dom.triggerEvent(myChart.canvas, 'click', {
+            pageX: rectangle.left + point.x,
+            pageY: rectangle.top + point.y
+        });
+
+        graph.destroy();
+    });
+
+    QUnit.test('graph view with attribute disable_linking="True"', async function (assert) {
+        assert.expect(2);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: '<graph disable_linking="1"><field name="bar"/></graph>',
+            intercepts: {
+                do_action: function () {
+                    throw new Error('Should not perform a do_action');
+                },
+            },
+        });
+        await testUtils.nextTick(); // wait for the graph to be rendered
+
+        assert.strictEqual(graph.renderer.state.mode, "bar", "should be in bar chart mode");
+        assert.checkDatasets(graph, ['domain'], {
+            domain: [[["bar", "=", true]], [["bar", "=", false]]],
+        });
+
+        let myChart = graph.renderer.chart;
+        let meta = myChart.getDatasetMeta(0);
+        let rectangle = myChart.canvas.getBoundingClientRect();
+        let point = meta.data[0].getCenterPoint();
+        await testUtils.dom.triggerEvent(myChart.canvas, 'click', {
+            pageX: rectangle.left + point.x,
+            pageY: rectangle.top + point.y
+        });
+
+        graph.destroy();
+    });
+
+    QUnit.test('graph view without invisible attribute on field', async function (assert) {
+        assert.expect(4);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `<graph string="Partners"></graph>`,
+        });
+
+        await testUtils.dom.click(graph.$('.btn-group:first button'));
+        assert.containsN(graph, 'li.o_menu_item', 3,
+            "there should be three menu item in the measures dropdown (count, revenue and foo)");
+        assert.containsOnce(graph, 'li.o_menu_item a:contains("Revenue")');
+        assert.containsOnce(graph, 'li.o_menu_item a:contains("Foo")');
+        assert.containsOnce(graph, 'li.o_menu_item a:contains("Count")');
+
+        graph.destroy();
+    });
+
+    QUnit.test('graph view with invisible attribute on field', async function (assert) {
+        assert.expect(2);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `
+                <graph string="Partners">
+                    <field name="revenue" invisible="1"/>
+                </graph>`,
+        });
+
+        await testUtils.dom.click(graph.$('.btn-group:first button'));
+        assert.containsN(graph, 'li.o_menu_item', 2,
+            "there should be only two menu item in the measures dropdown (count and foo)");
+        assert.containsNone(graph, 'li.o_menu_item a:contains("Revenue")');
+
+        graph.destroy();
+    });
+
+    QUnit.test('graph view sort by measure', async function (assert) {
+        assert.expect(18);
+
+        // change first record from foo as there are 4 records count for each product
+        this.data.product.records.push({ id: 38, display_name: "zphone"});
+        this.data.foo.records[7].product_id = 38;
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `<graph string="Partners" order="desc">
+                        <field name="product_id"/>
+                </graph>`,
+        });
+
+        assert.containsN(graph, 'button[data-order]', 2,
+            "there should be two order buttons for sorting axis labels in bar mode");
+        assert.checkLegend(graph, 'Count', 'measure should be by count');
+        assert.hasClass(graph.$('button[data-order="desc"]'), 'active',
+            'sorting should be applie on descending order by default when sorting="desc"');
+        assert.checkDatasets(graph, 'data', {data: [4, 3, 1]});
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="asc"]'));
+        assert.hasClass(graph.$('button[data-order="asc"]'), 'active',
+            "ascending order should be applied");
+        assert.checkDatasets(graph, 'data', {data: [1, 3, 4]});
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.hasClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order button should be active");
+        assert.checkDatasets(graph, 'data', { data: [4, 3, 1] });
+
+        // again click on descending button to deactivate order button
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.doesNotHaveClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order button should not be active");
+        assert.checkDatasets(graph, 'data', {data: [4, 3, 1]});
+
+        // set line mode
+        await testUtils.dom.click(graph.$buttons.find('button[data-mode="line"]'));
+        assert.containsN(graph, 'button[data-order]', 2,
+            "there should be two order buttons for sorting axis labels in line mode");
+        assert.checkLegend(graph, 'Count', 'measure should be by count');
+        assert.doesNotHaveClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order should be applied");
+        assert.checkDatasets(graph, 'data', {data: [4, 3, 1]});
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="asc"]'));
+        assert.hasClass(graph.$('button[data-order="asc"]'), 'active',
+            "ascending order button should be active");
+        assert.checkDatasets(graph, 'data', { data: [1, 3, 4] });
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.hasClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order button should be active");
+        assert.checkDatasets(graph, 'data', { data: [4, 3, 1] });
+
+        graph.destroy();
+    });
+
+    QUnit.test('graph view sort by measure for grouped data', async function (assert) {
+        assert.expect(9);
+
+        // change first record from foo as there are 4 records count for each product
+        this.data.product.records.push({ id: 38, display_name: "zphone", });
+        this.data.foo.records[7].product_id = 38;
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `<graph string="Partners">
+                        <field name="product_id"/>
+                        <field name="bar"/>
+                </graph>`,
+        });
+
+        assert.checkLegend(graph, ["true","false"], 'measure should be by count');
+        assert.containsN(graph, 'button[data-order]', 2,
+            "there should be two order buttons for sorting axis labels");
+        assert.checkDatasets(graph, 'data', [{data: [3, 0, 0]}, {data: [1, 3, 1]}]);
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="asc"]'));
+        assert.hasClass(graph.$('button[data-order="asc"]'), 'active',
+            "ascending order should be applied by default");
+        assert.checkDatasets(graph, 'data', [{ data: [1, 3, 1] }, { data: [0, 0, 3] }]);
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.hasClass(graph.$('button[data-order="desc"]'), 'active',
+            "ascending order button should be active");
+        assert.checkDatasets(graph, 'data', [{data: [1, 3, 1]}, {data: [3, 0, 0]}]);
+
+        // again click on descending button to deactivate order button
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.doesNotHaveClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order button should not be active");
+        assert.checkDatasets(graph, 'data', [{ data: [3, 0, 0] }, { data: [1, 3, 1] }]);
+
+        graph.destroy();
+    });
+
+    QUnit.test('graph view sort by measure for multiple grouped data', async function (assert) {
+        assert.expect(9);
+
+        // change first record from foo as there are 4 records count for each product
+        this.data.product.records.push({ id: 38, display_name: "zphone" });
+        this.data.foo.records[7].product_id = 38;
+
+        // add few more records to data to have grouped data date wise
+        const data = [
+            {id: 9, foo: 48, bar: false, product_id: 41, date: "2016-04-01"},
+            {id: 10, foo: 49, bar: false, product_id: 41, date: "2016-04-01"},
+            {id: 11, foo: 50, bar: true, product_id: 37, date: "2016-01-03"},
+            {id: 12, foo: 50, bar: true, product_id: 41, date: "2016-01-03"},
+        ];
+
+        Object.assign(this.data.foo.records, data);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `<graph string="Partners">
+                        <field name="product_id"/>
+                        <field name="date"/>
+                </graph>`,
+            groupBy: ['date', 'product_id']
+        });
+
+        assert.checkLegend(graph, ["xpad","xphone","zphone"], 'measure should be by count');
+        assert.containsN(graph, 'button[data-order]', 2,
+            "there should be two order buttons for sorting axis labels");
+        assert.checkDatasets(graph, 'data', [{data: [2, 1, 1, 2]}, {data: [0, 1, 0, 0]}, {data: [1, 0, 0, 0]}]);
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="asc"]'));
+        assert.hasClass(graph.$('button[data-order="asc"]'), 'active',
+            "ascending order should be applied by default");
+        assert.checkDatasets(graph, 'data', [{ data: [1, 1, 2, 2] }, { data: [0, 1, 0, 0] }, { data: [0, 0, 0, 1] }]);
+
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.hasClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order button should be active");
+        assert.checkDatasets(graph, 'data', [{data: [1, 0, 0, 0]}, {data: [2, 2, 1, 1]}, {data: [0, 0, 1, 0]}]);
+
+        // again click on descending button to deactivate order button
+        await testUtils.dom.click(graph.$buttons.find('button[data-order="desc"]'));
+        assert.doesNotHaveClass(graph.$('button[data-order="desc"]'), 'active',
+            "descending order button should not be active");
+        assert.checkDatasets(graph, 'data', [{ data: [2, 1, 1, 2] }, { data: [0, 1, 0, 0] }, { data: [1, 0, 0, 0] }]);
+
+        graph.destroy();
+    });
+
+    QUnit.test('empty graph view with sample data', async function (assert) {
+        assert.expect(8);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `
+                <graph sample="1">
+                    <field name="product_id"/>
+                    <field name="date"/>
+                </graph>`,
+            domain: [['id', '<', 0]],
+            viewOptions: {
+                action: {
+                    help: '<p class="abc">click to add a foo</p>'
+                }
+            },
+        });
+
+        assert.hasClass(graph.el, 'o_view_sample_data');
+        assert.containsOnce(graph, '.o_view_nocontent');
+        assert.containsOnce(graph, '.o_graph_canvas_container canvas');
+        assert.hasClass(graph.$('.o_graph_canvas_container'), 'o_sample_data_disabled');
+
+        await graph.reload({ domain: [] });
+
+        assert.doesNotHaveClass(graph.el, 'o_view_sample_data');
+        assert.containsNone(graph, '.o_view_nocontent');
+        assert.containsOnce(graph, '.o_graph_canvas_container canvas');
+        assert.doesNotHaveClass(graph.$('.o_graph_canvas_container'), 'o_sample_data_disabled');
+
+        graph.destroy();
+    });
+
+    QUnit.test('non empty graph view with sample data', async function (assert) {
+        assert.expect(8);
+
+        const graph = await createView({
+            View: GraphView,
+            model: "foo",
+            data: this.data,
+            arch: `
+                <graph sample="1">
+                    <field name="product_id"/>
+                    <field name="date"/>
+                </graph>`,
+            viewOptions: {
+                action: {
+                    help: '<p class="abc">click to add a foo</p>'
+                }
+            },
+        })
+
+        assert.doesNotHaveClass(graph.el, 'o_view_sample_data');
+        assert.containsNone(graph, '.o_view_nocontent');
+        assert.containsOnce(graph, '.o_graph_canvas_container canvas');
+        assert.doesNotHaveClass(graph.$('.o_graph_canvas_container'), 'o_sample_data_disabled');
+
+        await graph.reload({ domain: [['id', '<', 0]] });
+
+        assert.doesNotHaveClass(graph.el, 'o_view_sample_data');
+        assert.containsOnce(graph, '.o_graph_canvas_container canvas');
+        assert.doesNotHaveClass(graph.$('.o_graph_canvas_container'), 'o_sample_data_disabled');
+        assert.containsNone(graph, '.o_view_nocontent');
+
+        graph.destroy();
+    });
+
     QUnit.module('GraphView: comparison mode', {
         beforeEach: async function () {
             this.data.foo.records[0].date = '2016-12-15';
@@ -999,7 +1505,36 @@ QUnit.module('Views', {
             this.data.foo.records.push({id: 19, foo: 31, bar: false, product_id: 41, color_id: 14, date: "2016-12-15"});
             this.data.foo.records.push({id: 20, foo: 109, bar: true, product_id: 41, color_id: 7, date: "2015-06-01"});
 
+            this.data.foo.records = sortBy(this.data.foo.records, 'date');
+
             this.unpatchDate = patchDate(2016, 11, 20, 1, 0, 0);
+
+            const graph = await createView({
+                View: GraphView,
+                model: "foo",
+                data: this.data,
+                arch: `
+                    <graph string="Partners" type="bar">
+                        <field name="foo" type="measure"/>
+                    </graph>
+                `,
+                archs: {
+                    'foo,false,search': `
+                        <search>
+                            <filter name="date" string="Date" context="{'group_by': 'date'}"/>
+                            <filter name="date_filter" string="Date Filter" date="date"/>
+                            <filter name="bar" string="Bar" context="{'group_by': 'bar'}"/>
+                            <filter name="product_id" string="Product" context="{'group_by': 'product_id'}"/>
+                            <filter name="color_id" string="Color" context="{'group_by': 'color_id'}"/>
+                        </search>
+                    `,
+                },
+                viewOptions: {
+                    additionalMeasures: ['product_id'],
+                },
+            });
+
+            this.graph = graph;
 
             var checkOnlyToCheck = true;
             var exhaustiveTest = false || checkOnlyToCheck;
@@ -1015,7 +1550,7 @@ QUnit.module('Views', {
                     if (exhaustiveTest) {
                         i++;
                     } else {
-                        i += Math.floor(1 + Math.random() * 20)
+                        i += Math.floor(1 + Math.random() * 20);
                     }
                     yield combination;
                 }
@@ -1026,14 +1561,13 @@ QUnit.module('Views', {
                 for await (var combination of graphGenerator(combinations)) {
                     // we can check particular combinations here
                     if (combination.toString() in self.combinationsToCheck) {
-                        var graph = self.actionManager.getCurrentController().widget;
                         if (self.combinationsToCheck[combination].errorMessage) {
                             assert.strictEqual(
                                 graph.$('.o_nocontent_help p').eq(1).text().trim(),
                                 self.combinationsToCheck[combination].errorMessage
                             );
                         } else {
-                            assert.checkLabels(graph, self.combinationsToCheck[combination].labels)
+                            assert.checkLabels(graph, self.combinationsToCheck[combination].labels);
                             assert.checkLegend(graph, self.combinationsToCheck[combination].legend);
                             assert.checkDatasets(graph, ['label', 'data'], self.combinationsToCheck[combination].datasets);
                         }
@@ -1041,76 +1575,67 @@ QUnit.module('Views', {
                 }
             };
 
-            // time range menu is assumed to be closed
-            this.selectTimeRanges = async function (timeRangeOption, comparisonTimeRangeOption) {
-                comparisonTimeRangeOption = comparisonTimeRangeOption || 'previous_period';
-                // open time range menu
-                await testUtils.dom.click($('.o_control_panel .o_time_range_menu_button'));
-                // select range
-                await testUtils.fields.editInput($('.o_control_panel .o_time_range_selector'), timeRangeOption);
-                // check checkbox 'Compare To'
-                if (!$('.o_control_panel .o_time_range_menu .o_comparison_checkbox').prop('checked')) {
-                    await testUtils.dom.click($('.o_control_panel .o_time_range_menu .o_comparison_checkbox'));
+            const GROUPBY_NAMES = ['Date', 'Bar', 'Product', 'Color'];
+
+            this.selectTimeRanges = async function (comparisonOptionId, basicDomainId) {
+                const facetEls = graph.el.querySelectorAll('.o_searchview_facet');
+                const facetIndex = [...facetEls].findIndex(el => !!el.querySelector('span.fa-filter'));
+                if (facetIndex > -1) {
+                    await cpHelpers.removeFacet(graph, facetIndex);
                 }
-                // select 'Previous period' or 'Previous year' acording to comparisonTimeRangeOption
-                await testUtils.fields.editInput($('.o_control_panel .o_comparison_time_range_selector'), comparisonTimeRangeOption);
-                // Click on 'Apply' button
-                await testUtils.dom.click($('.o_control_panel .o_time_range_menu .o_apply_range'));
+                const [yearId, otherId] = basicDomainId.split('__');
+                await cpHelpers.toggleFilterMenu(graph);
+                await cpHelpers.toggleMenuItem(graph, 'Date Filter');
+                await cpHelpers.toggleMenuItemOption(graph, 'Date Filter', GENERATOR_INDEXES[yearId]);
+                if (otherId) {
+                    await cpHelpers.toggleMenuItemOption(graph, 'Date Filter', GENERATOR_INDEXES[otherId]);
+                }
+                const itemIndex = COMPARISON_OPTION_INDEXES[comparisonOptionId];
+                await cpHelpers.toggleComparisonMenu(graph);
+                await cpHelpers.toggleMenuItem(graph, itemIndex);
             };
 
             // groupby menu is assumed to be closed
             this.selectDateIntervalOption = async function (intervalOption) {
-                const self = this;
                 intervalOption = intervalOption || 'month';
+                const optionIndex = INTERVAL_OPTION_IDS.indexOf(intervalOption);
 
-                // open group by menu
-                await testUtils.dom.click($('.o_control_panel .o_dropdown span.fa-bars'));
-
+                await cpHelpers.toggleGroupByMenu(graph);
                 let wasSelected = false;
                 if (this.keepFirst) {
-                    if ($('.o_control_panel .o_group_by_menu .o_menu_item:contains(Product) a').hasClass('selected')) {
+                    if (cpHelpers.isItemSelected(graph, 2)) {
                         wasSelected = true;
-                        await testUtils.dom.click($('.o_control_panel .o_group_by_menu .o_menu_item:contains(Product)'));
+                        await cpHelpers.toggleMenuItem(graph, 2);
                     }
                 }
-
-                // open option submenu
-                await testUtils.dom.click($('.o_control_panel .o_group_by_menu .o_menu_item:contains("Date")'));
-                // check interval option if not already selected
-                if (!$('.o_control_panel .o_group_by_menu .o_item_option[data-option_id="' + intervalOption + '"] a').hasClass('selected')) {
-                    await testUtils.dom.click($('.o_control_panel .o_group_by_menu .o_item_option[data-option_id="' + intervalOption + '"]'));
+                await cpHelpers.toggleMenuItem(graph, 0);
+                if (!cpHelpers.isOptionSelected(graph, 0, optionIndex)) {
+                    await cpHelpers.toggleMenuItemOption(graph, 0, optionIndex);
                 }
-                await INTERVAL_OPTIONS.filter(oId => oId !== intervalOption).forEach(async function(oId) {
-                    if ($('.o_control_panel .o_group_by_menu .o_item_option[data-option_id="' + oId + '"] a').hasClass('selected')) {
-                        await testUtils.dom.click($('.o_control_panel .o_group_by_menu .o_item_option[data-option_id="' + oId + '"]'));
+                for (let i = 0; i < INTERVAL_OPTION_IDS.length; i++) {
+                    const oId = INTERVAL_OPTION_IDS[i];
+                    if (oId !== intervalOption && cpHelpers.isOptionSelected(graph, 0, i)) {
+                        await cpHelpers.toggleMenuItemOption(graph, 0, i);
                     }
-                });
+                }
 
                 if (this.keepFirst) {
-                    if (wasSelected && !$('.o_control_panel .o_group_by_menu .o_menu_item:contains(Product) a').hasClass('selected')) {
-                        await testUtils.dom.click($('.o_control_panel .o_group_by_menu .o_menu_item:contains(Product)'));
+                    if (wasSelected && !cpHelpers.isItemSelected(graph, 2)) {
+                        await cpHelpers.toggleMenuItem(graph, 2);
                     }
                 }
+                await cpHelpers.toggleGroupByMenu(graph);
 
-                // close group by menu
-                await testUtils.dom.click($('.o_control_panel .o_dropdown span.fa-bars'));
             };
 
             // groupby menu is assumed to be closed
             this.selectGroupBy = async function (groupByName) {
-                // open group by menu
-                await testUtils.dom.click($('.o_control_panel .o_dropdown span.fa-bars'));
-                // check groupBy if not already selected
-                if (!$('.o_control_panel .o_group_by_menu .o_menu_item:contains(' + groupByName + ') a').hasClass('selected')) {
-                    await testUtils.dom.click($('.o_control_panel .o_group_by_menu .o_menu_item:contains(' + groupByName + ')'));
+                await cpHelpers.toggleGroupByMenu(graph);
+                const index = GROUPBY_NAMES.indexOf(groupByName);
+                if (!cpHelpers.isItemSelected(graph, index)) {
+                    await cpHelpers.toggleMenuItem(graph, index);
                 }
-                // close group by menu
-                await testUtils.dom.click($('.o_control_panel .o_dropdown span.fa-bars'));
-            };
-            // groupby menu is assumed to be closed
-            this.unselectGroupBy = async function (groupByName) {
-                // check groupBy if already selected
-
+                await cpHelpers.toggleGroupByMenu(graph);
             };
 
             this.setConfig = async function (combination) {
@@ -1121,56 +1646,30 @@ QUnit.module('Views', {
             };
 
             this.setMode = async function (mode) {
-                await testUtils.dom.click($('.o_control_panel .o_graph_button[data-mode=' + mode + ']'));
+                await testUtils.dom.click($(`.o_control_panel .o_graph_button[data-mode="${mode}"]`));
             };
 
-            // // create an action manager to test the interactions with the search view
-            this.actionManager = await createActionManager({
-                data: this.data,
-                archs: {
-                    'foo,false,graph': '<graph string="Partners" type="bar">' +
-                        '<field name="foo" type="measure"/>' +
-                    '</graph>',
-                    'foo,false,search': '<search>' +
-                        '<filter name="date" string="Date" context="{\'group_by\': \'date\'}"/>' +
-                        '<filter name="bar" string="Bar" context="{\'group_by\': \'bar\'}"/>' +
-                        '<filter name="product_id" string="Product" context="{\'group_by\': \'product_id\'}"/>' +
-                        '<filter name="color_id" string="Color" context="{\'group_by\': \'color_id\'}"/>' +
-                    '</search>',
-                },
-            });
-
-            await this.actionManager.doAction({
-                res_model: 'foo',
-                type: 'ir.actions.act_window',
-                views: [[false, 'graph']],
-                flags: {
-                    graph: {
-                        additionalMeasures: ['product_id'],
-                    }
-                }
-            });
         },
         afterEach: function () {
             this.unpatchDate();
-            this.actionManager.destroy();
+            this.graph.destroy();
         },
     }, function () {
         QUnit.test('comparison with one groupby equal to comparison date field', async function (assert) {
-            assert.expect(10);
+            assert.expect(11);
 
             this.combinationsToCheck = {
-                'last_30_days,previous_period,day': {
-                    labels: [...Array(7).keys()].map(x => [x]),
-                    legend: ["Last 30 Days", "Previous Period"],
+                'previous_period,this_year__this_month,day': {
+                    labels: [...Array(6).keys()].map(x => [x]),
+                    legend: ["December 2016", "November 2016"],
                     datasets: [
                         {
-                            data: [26, 53, 2, 63, 110, 48, 48],
-                            label: "Last 30 Days",
+                            data: [110, 48, 26, 53, 63, 4],
+                            label: "December 2016",
                         },
                         {
-                            data: [24, 53],
-                            label: "Previous Period",
+                            data: [53, 24, 2, 48],
+                            label: "November 2016",
                         }
                     ],
                 }
@@ -1180,31 +1679,33 @@ QUnit.module('Views', {
             await this.testCombinations(combinations, assert);
             await this.setMode('line');
             await this.testCombinations(combinations, assert);
-            this.combinationsToCheck['last_30_days,previous_period,day'] = {
-                labels: [...Array(7).keys()].map(x => [x]),
+            this.combinationsToCheck['previous_period,this_year__this_month,day'] = {
+                labels: [...Array(6).keys()].map(x => [x]),
                 legend: [
-                    "2016-12-15,2016-11-03",
-                    "2016-12-17,2016-11-01",
-                    "2016-11-22",
+                    "2016-12-01,2016-11-01",
+                    "2016-12-10,2016-11-03",
+                    "2016-12-15,2016-11-22",
+                    "2016-12-17,2016-11-30",
                     "2016-12-19",
-                    "2016-12-01",
-                    "2016-12-10",
-                    "2016-11-30",
+                    "2016-12-20"
                 ],
                 datasets: [
                     {
-                        data: [26, 53, 2, 63, 110, 48, 48],
-                        label: "Last 30 Days",
+                        data: [ 110, 48, 26, 53, 63, 4],
+                        label: "December 2016",
                     },
                     {
-                        data: [24, 53, 0, 0, 0, 0, 0],
-                        label: "Previous Period",
+                        data: [ 53, 24, 2, 48, 0, 0],
+                        label: "November 2016",
                     }
                 ],
             };
             await this.setMode('pie');
             await this.testCombinations(combinations, assert);
 
+            // isNotVisible can not have two elements so checking visibility of first element
+            assert.isNotVisible(this.graph.$('button[data-order]:first'),
+                "there should not be order button in comparison mode");
             assert.ok(true, "No combination causes a crash");
         });
 
@@ -1212,17 +1713,17 @@ QUnit.module('Views', {
             assert.expect(10);
 
             this.combinationsToCheck = {
-                'last_30_days,previous_period': {
+                'previous_period,this_year__this_month': {
                     labels: [[]],
-                    legend: ["Last 30 Days", "Previous Period"],
+                    legend: ["December 2016", "November 2016"],
                     datasets: [
                         {
-                            data: [350],
-                            label: "Last 30 Days",
+                            data: [304],
+                            label: "December 2016",
                         },
                         {
-                            data: [77],
-                            label: "Previous Period",
+                            data: [127],
+                            label: "November 2016",
                         }
                     ],
                 }
@@ -1231,34 +1732,34 @@ QUnit.module('Views', {
             var combinations = COMBINATIONS;
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['last_30_days,previous_period'] = {
+            this.combinationsToCheck['previous_period,this_year__this_month'] = {
                 labels: [[''], [], ['']],
-                legend: ["Last 30 Days", "Previous Period"],
+                legend: ["December 2016", "November 2016"],
                 datasets: [
                     {
-                        data: [undefined, 350],
-                        label: "Last 30 Days",
+                        data: [undefined, 304],
+                        label: "December 2016",
                     },
                     {
-                        data: [undefined, 77],
-                        label: "Previous Period",
+                        data: [undefined, 127],
+                        label: "November 2016",
                     }
                 ],
             };
             await this.setMode('line');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['last_30_days,previous_period'] =  {
+            this.combinationsToCheck['previous_period,this_year__this_month'] =  {
                 labels: [[]],
                 legend: ["Total"],
                 datasets: [
                     {
-                        data: [350],
-                        label: "Last 30 Days",
+                        data: [304],
+                        label: "December 2016",
                     },
                     {
-                        data: [77],
-                        label: "Previous Period",
+                        data: [127],
+                        label: "November 2016",
                     }
                 ],
             };
@@ -1272,17 +1773,17 @@ QUnit.module('Views', {
             assert.expect(10);
 
             this.combinationsToCheck = {
-                'last_30_days,previous_period': {
-                    labels: [["xphone"],["xpad"],["Undefined"]],
-                    legend: ["Last 30 Days", "Previous Period"],
+                'previous_period,this_year__this_month': {
+                    labels: [["xpad"], ["xphone"],["Undefined"]],
+                    legend: ["December 2016", "November 2016"],
                     datasets: [
                         {
-                            data: [151, 151, 48],
-                            label: "Last 30 Days",
+                            data: [ 155, 149, 0],
+                            label: "December 2016",
                         },
                         {
-                            data: [24, 53, 0],
-                            label: "Previous Period",
+                            data: [ 53, 26, 48],
+                            label: "November 2016",
                         }
                     ],
                 }
@@ -1292,34 +1793,34 @@ QUnit.module('Views', {
             await this.selectGroupBy('Product');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['last_30_days,previous_period'] = {
-                labels: [["xphone"],["xpad"]],
-                legend: ["Last 30 Days", "Previous Period"],
+            this.combinationsToCheck['previous_period,this_year__this_month'] = {
+                labels: [["xpad"], ["xphone"]],
+                legend: ["December 2016", "November 2016"],
                 datasets: [
                     {
-                        data: [151, 151],
-                        label: "Last 30 Days",
+                        data: [155, 149],
+                        label: "December 2016",
                     },
                     {
-                        data: [24, 53],
-                        label: "Previous Period",
+                        data: [53, 26],
+                        label: "November 2016",
                     }
                 ],
             };
             await this.setMode('line');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['last_30_days,previous_period'] = {
-                labels: [["xphone"],["xpad"],["Undefined"]],
-                legend: ["xphone", "xpad", "Undefined"],
+            this.combinationsToCheck['previous_period,this_year__this_month'] = {
+                labels: [["xpad"], ["xphone"], ["Undefined"]],
+                legend: ["xpad", "xphone", "Undefined"],
                 datasets: [
                     {
-                        data: [151, 151, 48],
-                        label: "Last 30 Days",
+                        data: [ 155, 149, 0],
+                        label: "December 2016",
                     },
                     {
-                        data: [24, 53, 0],
-                        label: "Previous Period",
+                        data: [ 53, 26, 48],
+                        label: "November 2016",
                     }
                 ],
             };
@@ -1334,27 +1835,37 @@ QUnit.module('Views', {
 
             this.keepFirst = true;
             this.combinationsToCheck = {
-                'last_7_days,previous_period,day': {
-                    labels: [...Array(3).keys()].map(x => [x]),
+                'previous_period,this_year__this_month,day': {
+                    labels: [...Array(6).keys()].map(x => [x]),
                     legend: [
-                        "Last 7 Days/xphone",
-                        "Last 7 Days/xpad",
-                        "Previous Period/xphone"
+                        "December 2016/xpad",
+                        "December 2016/xphone",
+                        "November 2016/xpad",
+                        "November 2016/xphone",
+                        "November 2016/Undefined"
                     ],
                     datasets: [
                         {
-                            data: [3, 53, 0],
-                            label: "Last 7 Days/xphone",
+                          data: [ 65, 0, 23, 0, 63, 4],
+                          label: "December 2016/xpad"
                         },
                         {
-                            data: [23, 0, 63],
-                            label: "Last 7 Days/xpad",
+                          data: [ 45, 48, 3, 53, 0, 0],
+                          label: "December 2016/xphone"
                         },
                         {
-                            data: [48],
-                            label: "Previous Period/xphone",
+                          data: [ 53, 0, 0, 0],
+                          label: "November 2016/xpad"
+                        },
+                        {
+                          data: [ 0, 24, 2, 0],
+                          label: "November 2016/xphone"
+                        },
+                        {
+                          data: [ 0, 0, 0, 48],
+                          label: "November 2016/Undefined"
                         }
-                    ],
+                      ]
                 }
             };
 
@@ -1365,24 +1876,29 @@ QUnit.module('Views', {
             await this.testCombinations(combinations, assert);
 
 
-            this.combinationsToCheck['last_7_days,previous_period,day'] = {
-                labels: [[0,"xphone"], [1,"xphone"], [2, "xpad"], [0, "xpad"]],
+            this.combinationsToCheck['previous_period,this_year__this_month,day'] = {
+                labels: [[0, "xpad"], [0, "xphone"], [1, "xphone"], [2, "xphone"], [2, "xpad"], [3, "xphone"], [4, "xpad"], [5, "xpad"], [3, "Undefined"]],
                 legend: [
-                    "2016-12-15,2016-12-10/xphone",
-                    "2016-12-17/xphone",
+                    "2016-12-01,2016-11-01/xpad",
+                    "2016-12-01,2016-11-01/xphone",
+                    "2016-12-10,2016-11-03/xphone",
+                    "2016-12-15,2016-11-22/xphone",
+                    "2016-12-15,2016-11-22/xpad",
+                    "2016-12-17,2016-11-30/xphone",
                     "2016-12-19/xpad",
-                    "2016-12-15,2016-12-10/xpad"
+                    "2016-12-20/xpad",
+                    "2016-12-17,2016-11-30/Undefine..."
                 ],
                 datasets: [
                     {
-                        data: [3, 53, 63, 23],
-                        label: "Last 7 Days",
+                      "data": [ 65, 45, 48, 3, 23, 53, 63, 4, 0],
+                      "label": "December 2016"
                     },
                     {
-                        data: [48, 0, 0, 0],
-                        label: "Previous Period",
+                      "data": [ 53, 0, 24, 2, 0, 0, 0, 0, 48],
+                      "label": "November 2016"
                     }
-                ],
+                  ],
             };
 
             await this.setMode('pie');
@@ -1397,60 +1913,60 @@ QUnit.module('Views', {
             assert.expect(8);
 
             this.combinationsToCheck = {
-                'this_year,previous_period,quarter': {
+                'previous_period,this_year,quarter': {
                     labels: [["xphone"], ["xpad"],["Undefined"]],
                     legend: [
-                        "This Year/Q4 2016",
-                        "This Year/Q3 2016",
-                        "Previous Period/Q2 2015"
+                        "2016/Q3 2016",
+                        "2016/Q4 2016",
+                        "2015/Q2 2015"
                     ],
                     datasets: [
                         {
-                            data: [175, 208, 48],
-                            label: "This Year/Q4 2016",
+                            data: [-156, 48, 53],
+                            label: "2016/Q3 2016",
                         },
                         {
-                            data: [-156, 48, 53],
-                            label: "This Year/Q3 2016",
+                            data: [175, 208, 48],
+                            label: "2016/Q4 2016",
                         },
                         {
                             data: [0, 109, 0],
-                            label: "Previous Period/Q2 2015",
+                            label: "2015/Q2 2015",
                         },
                     ]
                 }
             };
 
-            var combinations = COMBINATIONS_WITH_DATE;
+            const combinations = COMBINATIONS_WITH_DATE;
             await this.selectGroupBy('Product');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['this_year,previous_period,quarter'] = {
+            this.combinationsToCheck['previous_period,this_year,quarter'] = {
                 labels: [["xphone"], ["xpad"]],
                 legend: [
-                    "This Year/Q4 2016",
-                    "This Year/Q3 2016",
-                    "Previous Period/Q2 2015"
+                    "2016/Q3 2016",
+                    "2016/Q4 2016",
+                    "2015/Q2 2015"
                 ],
                 datasets: [
                     {
-                        data: [175, 208],
-                        label: "This Year/Q4 2016",
+                        data: [-156, 48],
+                        label: "2016/Q3 2016",
                     },
                     {
-                        data: [-156, 48],
-                        label: "This Year/Q3 2016",
+                        data: [175, 208],
+                        label: "2016/Q4 2016",
                     },
                     {
                         data: [0, 109],
-                        label: "Previous Period/Q2 2015",
+                        label: "2015/Q2 2015",
                     },
                 ]
             };
             await this.setMode('line');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['this_year,previous_period,quarter'] = {
+            this.combinationsToCheck['previous_period,this_year,quarter'] = {
                 errorMessage: 'Pie chart cannot mix positive and negative numbers. ' +
                                 'Try to change your domain to only display positive results'
             };
@@ -1463,17 +1979,17 @@ QUnit.module('Views', {
             assert.expect(10);
 
             this.combinationsToCheck = {
-                'last_month,previous_year': {
-                    labels: [["xphone"],["Undefined"], ["xpad"]],
-                    legend: ["Last Month/true", "Last Month/false"],
+                'previous_year,this_year__last_month': {
+                    labels: [["xpad"], ["xphone"],["Undefined"] ],
+                    legend: ["November 2016/false", "November 2016/true"],
                     datasets: [
                         {
-                            data: [2, 0, 0],
-                            label: "Last Month/true",
+                            data: [53, 24, 48],
+                            label: "November 2016/false",
                         },
                         {
-                            data: [24, 48, 53],
-                            label: "Last Month/false",
+                            data: [0, 2, 0],
+                            label: "November 2016/true",
                         }
                     ],
                 }
@@ -1484,48 +2000,43 @@ QUnit.module('Views', {
             await this.selectGroupBy('Bar');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['last_month,previous_year'] = {
-                labels: [["xphone"], ["xpad"]],
-                legend: ["Last Month/true", "Last Month/false"],
+            this.combinationsToCheck['previous_year,this_year__last_month'] = {
+                labels: [["xpad"], ["xphone"] ],
+                legend: ["November 2016/false", "November 2016/true"],
                 datasets: [
                     {
-                        data: [2, 0],
-                        label: "Last Month/true",
+                        data: [53, 24],
+                        label: "November 2016/false",
                     },
                     {
-                        data: [24, 53],
-                        label: "Last Month/false",
+                        data: [0, 2],
+                        label: "November 2016/true",
                     }
                 ],
             };
             await this.setMode('line');
             await this.testCombinations(combinations, assert);
 
-            this.combinationsToCheck['last_month,previous_year'] = {
-                labels: [
-                    ["xphone", true],
-                    ["xphone", false],
-                    ["Undefined", false],
-                    ["xpad", false],
-                    ["No data"]
-                ],
+            this.combinationsToCheck['previous_year,this_year__last_month'] = {
+                labels:
+                [["xpad", false], ["xphone", false], ["xphone", true], ["Undefined", false], ["No data"]],
                 legend: [
-                    "xphone/true",
-                    "xphone/false",
-                    "Undefined/false",
                     "xpad/false",
+                    "xphone/false",
+                    "xphone/true",
+                    "Undefined/false",
                     "No data"
                 ],
                 datasets: [
                     {
-                        data: [2, 24, 48, 53],
-                        label: "Last Month",
+                      "data": [ 53, 24, 2, 48],
+                      "label": "November 2016"
                     },
                     {
-                        data: [undefined, undefined, undefined, undefined, 1],
-                        label: "Previous Year",
+                      "data": [ undefined, undefined, undefined, undefined, 1],
+                      "label": "November 2015"
                     }
-                ],
+                  ],
             };
             await this.setMode('pie');
             await this.testCombinations(combinations, assert);

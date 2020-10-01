@@ -148,7 +148,7 @@ var Widget = core.Class.extend(mixins.PropertiesMixin, ServicesMixin, {
             }));
         }
         if (this.jsLibs || this.cssLibs || this.assetLibs) {
-            proms.push(ajax.loadLibs(this));
+            proms.push(this._loadLibs(this));
         }
         return Promise.all(proms);
     },
@@ -204,6 +204,9 @@ var Widget = core.Class.extend(mixins.PropertiesMixin, ServicesMixin, {
         var self = this;
         this.setElement(target.$el || target);
         return this.willStart().then(function () {
+            if (self.__parentedDestroyed) {
+                return;
+            }
             return self.start();
         });
     },

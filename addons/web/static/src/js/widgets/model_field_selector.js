@@ -303,8 +303,12 @@ var ModelFieldSelector = Widget.extend({
         function processChain(chain) {
             var fieldName = chain.pop();
             var field = this._getLastPageField(fieldName);
-            if (field && field.relation && chain.length > 0) { // Fetch next chain node if any and possible
-                return this._pushPageData(field.relation).then(processChain.bind(this, chain));
+            if (field && field.relation) {
+                if (chain.length) { // Fetch next chain node if any and possible
+                    return this._pushPageData(field.relation).then(processChain.bind(this, chain));
+                } else { // Simply update the last popover page
+                    return this._pushPageData(field.relation);
+                }
             } else if (field && chain.length === 0) { // Last node fetched
                 return Promise.resolve();
             } else if (!field && fieldName === "1") { // TRUE_LEAF
@@ -429,8 +433,8 @@ var ModelFieldSelector = Widget.extend({
 
         if (!this.valid) {
             this.do_warn(
-                _t("Invalid field chain"),
-                _t("The field chain is not valid. Did you maybe use a non-existing field name or followed a non-relational field?")
+                false,
+                _t("Invalid field chain. You may have used a non-existing field name or followed a non-relational field.")
             );
         }
     },
@@ -491,7 +495,10 @@ var ModelFieldSelector = Widget.extend({
         var userChainStr = this.$input.val();
         var userChain = userChainStr.split(".");
         if (!this.options.followRelations && userChain.length > 1) {
-            this.do_warn(_t("Relation not allowed"), _t("You cannot follow relations for this field chain construction"));
+            this.do_warn(
+                _t("Relation not allowed"),
+                _t("You cannot follow relations for this field chain construction")
+            );
             userChain = [userChain[0]];
         }
         this.setChain(userChain).then((function () {
