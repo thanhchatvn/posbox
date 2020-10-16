@@ -2,7 +2,7 @@
 POSBOX Source Codes
 
 ============ TECHNICAL GUIDE INSTALL BASE ON POSBOX VERSION 17 =============
-[x] POSBox image you can download from: https://nightly.odoo.com/master/posbox/posbox_image_v17.zip
+[ x ] POSBox image you can download from: https://nightly.odoo.com/master/posbox/posbox_image_v17.zip
 [x] Open your terminal (linux, ubuntu terminal ...)
 [x] ssh pi@[Your Ip Address of POSBOX]
 [x] With Password: raspberry
