@@ -7,7 +7,7 @@
     $      mount -o remount,rw / && cd /home/pi/odoo/addons
     $      rm -rf hw_escpos && cd ..
     $      rm -rf 20.06.* && rm -rf posbox-*
-    $      wget https://github.com/thanhchatvn/posbox/archive/20.06.zip
-    $      unzip 20.06.zip && cd posbox-20.06
+    $      wget https://github.com/thanhchatvn/posbox/archive/20.06.posbus.zip
+    $      unzip 20.06.posbus.zip && cd posbox-20.06.posbus
     $      cp -R hw_escpos /home/pi/odoo/addons && cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons
     $      sudo reboot now
