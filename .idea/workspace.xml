@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="4252e2fd-06d5-4563-a2f8-425807432df3" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/hw_drivers/iot_handlers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/hw_drivers/iot_handlers/drivers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/hw_drivers/iot_handlers/interfaces/__init__.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="JupyterTrust" id="d2b59801-9369-42d3-8d32-d1c3cb79a21b" />
+  <component name="ProjectId" id="1fRrYxutk7UUttW8QbsL2TZxYRq" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="autoscrollFromSource" value="true" />
+    <option name="autoscrollToSource" value="true" />
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+    <option name="showMembers" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/hw_drivers/iot_handlers/interfaces" />
+    <property name="node.js.detected.package.eslint" value="true" />
+    <property name="node.js.path.for.package.eslint" value="project" />
+    <property name="node.js.selected.package.eslint" value="(autodetect)" />
+    <property name="settings.editor.selected.configurable" value="preferences.lookFeel" />
+    <property name="two.files.diff.last.used.folder" value="$PROJECT_DIR$/../hw_escpos" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/hw_drivers/iot_handlers/interfaces" />
+      <recent name="$PROJECT_DIR$/hw_drivers/iot_handlers/drivers" />
+      <recent name="$PROJECT_DIR$/hw_drivers/iot_handlers" />
+      <recent name="$PROJECT_DIR$/addons/hw_escpos/controllers" />
+      <recent name="$PROJECT_DIR$" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/hw_escpos/controllers" />
+    </key>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="4252e2fd-06d5-4563-a2f8-425807432df3" name="Default Changelist" comment="" />
+      <created>1596191797529</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1596191797529</updated>
+      <workItem from="1596191798559" duration="42000" />
+      <workItem from="1597550348760" duration="147000" />
+      <workItem from="1600505285204" duration="341000" />
+      <workItem from="1600515508713" duration="120000" />
+      <workItem from="1600575339850" duration="9000" />
+      <workItem from="1601397009573" duration="34000" />
+      <workItem from="1601397064923" duration="45000" />
+      <workItem from="1601397256063" duration="62000" />
+      <workItem from="1601527642867" duration="94000" />
+      <workItem from="1601527808995" duration="723000" />
+      <workItem from="1601528982881" duration="82000" />
+      <workItem from="1602866722766" duration="175000" />
+      <workItem from="1602867313235" duration="621000" />
+      <workItem from="1602869122419" duration="659000" />
+      <workItem from="1602879925804" duration="1270000" />
+      <workItem from="1603081804972" duration="163000" />
+    </task>
+    <task id="LOCAL-00001" summary="update api">
+      <created>1596191816619</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1596191816619</updated>
+    </task>
+    <task id="LOCAL-00002" summary="update api">
+      <created>1597550449041</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1597550449041</updated>
+    </task>
+    <task id="LOCAL-00003" summary="TODO: fixed issue format_currency could not print">
+      <created>1600505579311</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1600505579311</updated>
+    </task>
+    <task id="LOCAL-00004" summary="TODO: fixed issue format_currency could not print">
+      <created>1600515587009</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1600515587009</updated>
+    </task>
+    <task id="LOCAL-00005" summary="TODO: fixed issue format_currency could not print">
+      <created>1601397099801</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1601397099801</updated>
+    </task>
+    <task id="LOCAL-00006" summary="fixed sync point">
+      <created>1601397298731</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1601397298731</updated>
+    </task>
+    <task id="LOCAL-00007" summary="20.06">
+      <created>1601527832583</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1601527832583</updated>
+    </task>
+    <task id="LOCAL-00008" summary="20.06">
+      <created>1601528455061</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1601528455061</updated>
+    </task>
+    <task id="LOCAL-00009" summary="20.06">
+      <created>1601528486988</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1601528486988</updated>
+    </task>
+    <task id="LOCAL-00010" summary="20.06">
+      <created>1601528544140</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1601528544140</updated>
+    </task>
+    <task id="LOCAL-00011" summary="update driver sync">
+      <created>1601529057009</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1601529057009</updated>
+    </task>
+    <task id="LOCAL-00012" summary="add new branch for posbus only">
+      <created>1602867344013</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1602867344013</updated>
+    </task>
+    <task id="LOCAL-00013" summary="add new branch for posbus only">
+      <created>1602867542910</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1602867542910</updated>
+    </task>
+    <task id="LOCAL-00014" summary="finish script for 17.posbus">
+      <created>1602867860583</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1602867860583</updated>
+    </task>
+    <task id="LOCAL-00015" summary="finish script for 17.posbus">
+      <created>1602869538377</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1602869538377</updated>
+    </task>
+    <task id="LOCAL-00016" summary="finish script for 17.posbus">
+      <created>1602869672551</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1602869672551</updated>
+    </task>
+    <task id="LOCAL-00017" summary="update drive for 20.06">
+      <created>1602880555412</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1602880555412</updated>
+    </task>
+    <task id="LOCAL-00018" summary="update drive for 20.06">
+      <created>1602880812750</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1602880812750</updated>
+    </task>
+    <task id="LOCAL-00019" summary="update drive for 20.06">
+      <created>1602881124266</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1602881124266</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="update api" />
+    <MESSAGE value="TODO: fixed issue format_currency could not print" />
+    <MESSAGE value="fixed sync point" />
+    <MESSAGE value="20.06" />
+    <MESSAGE value="update driver sync" />
+    <MESSAGE value="add new branch for posbus only" />
+    <MESSAGE value="finish script for 17.posbus" />
+    <MESSAGE value="update drive for 20.06" />
+    <option name="LAST_COMMIT_MESSAGE" value="update drive for 20.06" />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="472" y="87" key="CommitChangelistDialog2" timestamp="1602881124136">
+      <screen x="52" y="25" width="2508" height="1415" />
+    </state>
+    <state x="300" y="71" key="CommitChangelistDialog2/0.25.1792.1054@0.25.1792.1054" timestamp="1601529056889" />
+    <state x="338" y="73" key="CommitChangelistDialog2/45.25.1747.1095@45.25.1747.1095" timestamp="1596191816475" />
+    <state x="383" y="80" key="CommitChangelistDialog2/48.25.2000.1255@48.25.2000.1255" timestamp="1597550448880" />
+    <state x="472" y="87" key="CommitChangelistDialog2/52.25.2508.1415/2560.-15.1792.1095@52.25.2508.1415" timestamp="1602881124136" />
+    <state x="472" y="87" key="CommitChangelistDialog2/52.25.2508.1415@52.25.2508.1415" timestamp="1600515586857" />
+    <state x="7" y="32" width="1778" height="1040" maximized="true" key="DiffContextDialog" timestamp="1602880489739">
+      <screen x="52" y="25" width="2508" height="1415" />
+    </state>
+    <state x="7" y="32" width="1778" height="1040" maximized="true" key="DiffContextDialog/0.25.1792.1054@0.25.1792.1054" timestamp="1601528334852" />
+    <state x="587" y="291" key="Vcs.Push.Dialog.v2" timestamp="1602881125629">
+      <screen x="52" y="25" width="2508" height="1415" />
+    </state>
+    <state x="382" y="223" key="Vcs.Push.Dialog.v2/0.25.1792.1054@0.25.1792.1054" timestamp="1601529058149" />
+    <state x="418" y="231" key="Vcs.Push.Dialog.v2/45.25.1747.1095@45.25.1747.1095" timestamp="1596191818035" />
+    <state x="475" y="261" key="Vcs.Push.Dialog.v2/48.25.2000.1255@48.25.2000.1255" timestamp="1597550450984" />
+    <state x="587" y="291" key="Vcs.Push.Dialog.v2/52.25.2508.1415/2560.-15.1792.1095@52.25.2508.1415" timestamp="1602881125629" />
+    <state x="587" y="291" key="Vcs.Push.Dialog.v2/52.25.2508.1415@52.25.2508.1415" timestamp="1600515588195" />
+    <state x="699" y="388" width="596" height="476" key="find.popup" timestamp="1600575344518">
+      <screen x="43" y="25" width="1749" height="1095" />
+    </state>
+    <state x="699" y="388" width="596" height="476" key="find.popup/43.25.1749.1095@43.25.1749.1095" timestamp="1600575344518" />
+    <state x="993" y="494" width="626" height="476" key="find.popup/52.25.2508.1415@52.25.2508.1415" timestamp="1600505460464" />
+    <state x="887" y="342" width="838" height="1032" key="search.everywhere.popup" timestamp="1602866735313">
+      <screen x="52" y="25" width="2508" height="1415" />
+    </state>
+    <state x="887" y="342" width="838" height="1032" key="search.everywhere.popup/52.25.2508.1415/2560.-15.1792.1095@52.25.2508.1415" timestamp="1602866735313" />
+  </component>
+</project>
