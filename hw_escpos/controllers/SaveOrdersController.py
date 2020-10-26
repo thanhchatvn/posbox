@@ -78,6 +78,10 @@ class SaveOrderController(web.Home):
         _logger.info('push orders to server Odoo')
         results = driver.get_orders()
         headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+        values = {
+            'code': 200,
+            'values': ''
+        }
         for database, orders in results.items():
             order = orders[0][2]
             url = order['url']
@@ -96,10 +100,14 @@ class SaveOrderController(web.Home):
                 if response.get('error', None):
                     orders = [order[2] for order in orders]
                     driver.save_orders_to_queue(database, orders, url, username, server_version)
+                    values['code'] = 500
+                else:
+                    values['values'] = response
             except:
                 orders = [order[2] for order in orders]
                 driver.save_orders_to_queue(database, orders, url, username, server_version)
-        return json.dumps({'state': 'succeed', 'values': {}})
+                values['code'] = 500
+        return json.dumps(values)
 
     @http.route('/pos/ping/server', type="json", auth='none', cors='*')
     def ping_odoo_server(self, ip, port):
