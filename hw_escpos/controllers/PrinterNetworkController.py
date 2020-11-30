@@ -15,7 +15,7 @@ import time
 _logger = logging.getLogger(__name__)
 
 try:
-    from odoo.addons.hw_proxy.controllers import main as hw_proxy
+    from odoo.addons.hw_drivers.controllers import proxy
     from odoo.addons.hw_escpos.controllers.main import EscposDriver
 except ImportError:
     EscposDriver = object

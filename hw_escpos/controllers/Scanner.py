@@ -12,10 +12,9 @@ except ImportError:
     from Queue import Queue, Empty  # pylint: disable=deprecated-module
 from select import select
 from threading import Thread, Lock
-
+from odoo.addons.hw_drivers.controllers import proxy
 from odoo import http
 
-from odoo.addons.hw_proxy.controllers import main as hw_proxy
 
 _logger = logging.getLogger(__name__)
 
@@ -237,10 +236,10 @@ class Scanner(Thread):
 scanner_thread = None
 if evdev:
     scanner_thread = Scanner()
-    hw_proxy.drivers['scanner'] = scanner_thread
+    proxy.drivers['scanner'] = scanner_thread
 
 
-class ScannerDriver(hw_proxy.Proxy):
+class ScannerDriver(proxy.ProxyController):
     @http.route('/hw_proxy/scanner', type='json', auth='none', cors='*')
     def scanner(self):
         return scanner_thread.get_barcode() if scanner_thread else None

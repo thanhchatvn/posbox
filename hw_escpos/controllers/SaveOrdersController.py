@@ -12,7 +12,6 @@ try:
 except ImportError:
     from Queue import Queue
 
-from odoo.addons.web.controllers import main as web
 from odoo.addons.hw_drivers.controllers import proxy
 
 import time
