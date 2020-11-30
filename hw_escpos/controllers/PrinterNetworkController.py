@@ -4,6 +4,7 @@ import logging
 import json
 from odoo.addons.hw_escpos.escpos.printer import Network
 from odoo.addons.web.controllers import main as web
+from odoo.addons.hw_drivers.controllers import proxy
 import time
 
 import platform    # For getting the operating system name
@@ -35,7 +36,7 @@ class EscposNetworkDriver(EscposDriver):
 
 network_driver = EscposNetworkDriver()
 
-class NetworkEscposProxy(web.Home):
+class NetworkEscposProxy(proxy.ProxyController):
 
     @http.route('/hw_proxy/print_network', type='json', auth='none', cors='*')
     def epson_printing(self, receipt, proxy):

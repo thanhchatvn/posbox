@@ -16,6 +16,7 @@ except ImportError:
 
 # TODO: chef screens
 from odoo.addons.web.controllers import main as web
+from odoo.addons.hw_drivers.controllers import proxy
 
 import json
 import logging
@@ -102,7 +103,7 @@ class SyncDrive(Thread):
 driver = SyncDrive()
 
 
-class SyncController(web.Home):
+class SyncController(proxy.ProxyController):
 
     @http.route('/pos/register/sync', type="json", auth='none', cors='*')
     def register_sync(self, database, config_id, config_ids):

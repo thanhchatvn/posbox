@@ -13,6 +13,7 @@ except ImportError:
     from Queue import Queue
 
 from odoo.addons.web.controllers import main as web
+from odoo.addons.hw_drivers.controllers import proxy
 
 import time
 import json
@@ -65,7 +66,7 @@ class SaveOrdersDrive(Thread):
 
 driver = SaveOrdersDrive()
 
-class SaveOrderController(web.Home):
+class SaveOrderController(proxy.ProxyController):
 
     @http.route('/pos/save/orders', type="json", auth='none', cors='*')
     def save_orders(self, database, orders, url, username, server_version):
