@@ -223,8 +223,10 @@ class Network(Escpos):
 
 
     def _raw(self, msg):
+        print(msg)
         if type(msg) is str:
             msg = msg.encode("utf-8")
+        print(msg)
         self.device.send(msg)
 
 
