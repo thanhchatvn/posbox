@@ -24,7 +24,7 @@ except ImportError:
 class EscposNetworkDriver(EscposDriver):
 
     def print_network(self, receipt, proxy, name=None):
-        time.sleep(3)
+        # time.sleep(3) // remove time sleep 22/12/2020
         printer_object = Network(proxy)
         printer_object.open()
         if printer_object:
@@ -40,10 +40,12 @@ class NetworkEscposProxy(proxy.ProxyController):
 
     @http.route('/hw_proxy/print_network', type='json', auth='none', cors='*')
     def epson_printing(self, receipt, proxy):
+        _logger.info('-----------------------------------BEGIN------------------------------------------')
         _logger.info('[epson_printing] Begin')
         _logger.info('[epson_printing] ip: %s' % proxy)
         result = network_driver.print_network(receipt, proxy)
         _logger.info('[epson_printing] result: %s' % result)
+        _logger.info('-----------------------------------END--------------------------------------------')
         return json.dumps({'state': 'succeed', 'values': result})
 
     def ping(self, host):
