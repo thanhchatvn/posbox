@@ -3,47 +3,45 @@ from odoo import http
 import logging
 import json
 from odoo.addons.hw_escpos.escpos.printer import Network
-from odoo.addons.web.controllers import main as web
 from odoo.addons.hw_drivers.controllers import proxy
-import time
 
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
-import time
 
 
 _logger = logging.getLogger(__name__)
 
-try:
-    from odoo.addons.hw_drivers.controllers import proxy
-    from odoo.addons.hw_escpos.controllers.main import EscposDriver
-except ImportError:
-    EscposDriver = object
 
 
-class EscposNetworkDriver(EscposDriver):
-
-    def print_network(self, receipt, proxy, name=None):
-        time.sleep(1)
-        printer_object = Network(proxy)
-        printer_object.open()
-        if printer_object:
-            printer_object.receipt(receipt)
-            printer_object.__del__()
-            return True
-        return False
-
-
-network_driver = EscposNetworkDriver()
+# class EscposNetworkDriver(EscposDriver):
+#
+#     def print_network(self, receipt, proxy, name=None):
+#         time.sleep(1)
+#         printer_object = Network(proxy)
+#         printer_object.open()
+#         if printer_object:
+#             printer_object.receipt(receipt)
+#             printer_object.__del__()
+#             return True
+#         return False
+#
+#
+# network_driver = EscposNetworkDriver()
 
 class NetworkEscposProxy(proxy.ProxyController):
 
     @http.route('/hw_proxy/print_network', type='json', auth='none', cors='*')
     def epson_printing(self, receipt, proxy):
-        _logger.info('----- Print Lan Network ------')
-        _logger.info('proxy ip: %s' % proxy)
-        result = network_driver.print_network(receipt, proxy)
-        return json.dumps({'state': 'succeed', 'values': result})
+        _logger.info('[epson_printing] Begin')
+        _logger.info('[epson_printing] proxy ip: %s' % proxy)
+        printer_object = Network(proxy)
+        printer_object.open()
+        printResult = None
+        if printer_object:
+            printResult= printer_object.receipt(receipt)
+            printer_object.__del__()
+        _logger.info('[epson_printing] Result of Printer Network: %s' % printResult)
+        return json.dumps({'state': 'succeed', 'values': printResult})
 
     def ping(self, host):
         param = '-n' if platform.system().lower()=='windows' else '-c'
