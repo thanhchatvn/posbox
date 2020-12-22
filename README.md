@@ -24,3 +24,4 @@ wget https://github.com/thanhchatvn/posbox/archive/20.10.zip
 unzip 20.10.zip && cd posbox-20.10
 cp -R hw_escpos /home/pi/odoo/addons
 cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons
+sudo reboot now
