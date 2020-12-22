@@ -7,7 +7,7 @@ from odoo.addons.hw_drivers.controllers import proxy
 
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
-
+import time
 
 _logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ class NetworkEscposProxy(proxy.ProxyController):
 
     @http.route('/hw_proxy/print_network', type='json', auth='none', cors='*')
     def epson_printing(self, receipt, proxy):
+        time.sleep(3)
         _logger.info('[epson_printing] Begin')
         _logger.info('[epson_printing] proxy ip: %s' % proxy)
         printer_object = Network(proxy)
