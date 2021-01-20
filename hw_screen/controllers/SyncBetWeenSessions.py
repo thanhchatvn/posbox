@@ -1,9 +1,15 @@
-# -*- coding: utf-8 -*
+# -*- coding: utf-8 -*-
+##############################################################################
+#
+#    TL Technology
+#    Copyright (C) 2019 ­TODAY TL Technology (<https://www.posodoo.com>).
+#    Odoo Proprietary License v1.0 along with this program.
+#
+##############################################################################
 import time
 from threading import Thread, Lock
 from odoo import http, _
 import os
-
 try:
     from xmlrpc import client as xmlrpclib
 except ImportError:
@@ -17,6 +23,7 @@ except ImportError:
 # TODO: chef screens
 from odoo.addons.web.controllers import main as web
 
+
 import json
 import logging
 
@@ -25,97 +32,68 @@ _logger = logging.getLogger(__name__)
 
 class SyncDrive(Thread):
 
-    """
-    Any datas sync between session stored to Queue and by config_id
-    period 2 seconds, pos sessions auto call to this controller and get new updates datas
-    Key point of queue is Database
-    Each Database have config ID and Arrays Datas
-    Example:
-        Queue = {
-            'db1': {
-                'config_1': [data1, data2 ....etc],
-                'config_2': [data1, data2 ....etc],
-            },
-            'db2': {
-                'config_1': [data1, data2 ....etc],
-                'config_2': [data1, data2 ....etc],
-            }
-        }
-    Each POS Config save total maximum 2000 datas, if bigger than or equal 2000, we remove datas for reduce RAM
-    TODO: If Odoo-Server restart: all datas sync will lose (*****)
-    """
-
     def __init__(self):
         Thread.__init__(self)
         self.chef_login = {}
         self.lock = Lock()
         self.sync_datas = {}
-        self.total_notification_by_config_id = {}
 
-    def register_point(self, database, config_ids):
+    def register_point(self, database, bus_id, user_id):
         if not self.sync_datas.get(database, None):
             self.sync_datas[database] = {}
-            self.total_notification_by_config_id[database] = {}
-            for config_id in config_ids:
-                if not self.sync_datas[database].get(config_id, None):
-                    self.sync_datas[database][config_id] = Queue()
-                    self.total_notification_by_config_id[database][config_id] = 0
+            self.sync_datas[database][bus_id] = {}
+            self.sync_datas[database][bus_id][user_id] = Queue()
+        else:
+            if not self.sync_datas[database].get(bus_id, None):
+                self.sync_datas[database][bus_id] = {}
+                self.sync_datas[database][bus_id][user_id] = Queue()
+            else:
+                if not self.sync_datas[database][bus_id].get(user_id, None):
+                    self.sync_datas[database][bus_id][user_id] = Queue()
         return True
 
-    def save_notification(self, database, send_from_config_id, config_ids, message):
-        database_datas = self.sync_datas.get(database)
-        if not database_datas:
-            self.register_point(database, config_ids)
-        databases = self.sync_datas.get(database)
-        for config_id, values in databases.items():
-            if config_id != send_from_config_id and config_id in config_ids:
-                databases[config_id].put((time.time(), config_id, message))
-                _logger.info('{sync} save notification to config_id %s' % config_id)
-                if not self.total_notification_by_config_id.get(database, None):
-                    self.total_notification_by_config_id[database] = {}
-                if not self.total_notification_by_config_id[database].get(config_id, None):
-                    self.total_notification_by_config_id[database][config_id] = 0
-                self.total_notification_by_config_id[database][config_id] += 1
-                # TODO: if total notifications of config_id bigger than 2000, we clear data for reduce RAM of system
-                if self.total_notification_by_config_id[database][config_id] >= 2000:
-                    self.sync_datas[database][config_id].get()
+    def save_notification(self, database, bus_id, user_id, message):
+        database_datas = self.sync_datas[database]
+        bus_point = database_datas[bus_id]
+        for cache_user_id, values in bus_point.items():
+            if user_id != cache_user_id:
+                bus_point[cache_user_id].put((time.time(), user_id, message))
         return True
 
-    def get_notifications(self, database, config_id):
+    def get_notifications(self, database, bus_id, user_id):
         result_list = []
         if not self.sync_datas.get(database, None):
-            self.sync_datas[database] = {}
-            self.sync_datas[database][config_id] = Queue()
+            self.register_point(database, bus_id, user_id)
             return []
         else:
-            if not self.sync_datas[database].get(config_id):
-                self.sync_datas[database][config_id] = Queue()
-            while not self.sync_datas[database][config_id].empty():
-                result_list.append(self.sync_datas[database][config_id].get())
-            if not self.total_notification_by_config_id.get(database, None):
-                self.total_notification_by_config_id[database] = {}
-            if not self.total_notification_by_config_id[database].get(config_id, None):
-                self.total_notification_by_config_id[database][config_id] = 0
-            self.total_notification_by_config_id[database][config_id] -= len(result_list)
+            while not self.sync_datas[database][bus_id][user_id].empty():
+                result_list.append(self.sync_datas[database][bus_id][user_id].get())
         return result_list
 
-driver = SyncDrive()
 
+driver = SyncDrive()
 
 class SyncController(web.Home):
 
     @http.route('/pos/register/sync', type="json", auth='none', cors='*')
-    def register_sync(self, database, config_id, config_ids):
-        driver.register_point(database, config_ids)
-        values = driver.get_notifications(database, config_id)
-        return json.dumps({'state': 'succeed', 'values': values})
-
-    @http.route('/pos/save/sync', type="json", auth='none', cors='*')
-    def save_sync(self, database, send_from_config_id, config_ids, message):
-        driver.save_notification(database, send_from_config_id, config_ids, message)
+    def register_sync(self, database, bus_id, user_id):
+        # TODO: each bus_id we stores all event of pos sessions
+        driver.register_point(database, bus_id, user_id)
         return json.dumps({'state': 'succeed', 'values': {}})
 
-    @http.route('/pos/passing/login', type='json', auth='none', cors='*')
+    @http.route('/pos/save/sync', type="json", auth='none', cors='*')
+    def save_sync(self, database, bus_id, user_id, message):
+        # TODO: save all transactions event from pos sessions
+        driver.save_notification(database, bus_id, user_id, message)
+        return json.dumps({'state': 'succeed', 'values': {}})
+
+    @http.route('/pos/get/sync', type="json", auth='none', cors='*')
+    def get_sync(self, database, bus_id, user_id):
+        # TODO: get any events change from another pos sessions
+        values = driver.get_notifications(database, bus_id, user_id)
+        return json.dumps({'state': 'succeed', 'values': values})
+
+    @http.route('/pos/passing/login', type='http', auth='none', cors='*')
     def pos_login(self):
         return "ping"
 
