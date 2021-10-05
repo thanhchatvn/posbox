@@ -6,12 +6,8 @@ body .pos-customer_facing_display .pos-customer_products {
 }
 
 body .pos-customer_facing_display .pos-payment_info .pos-company_logo >img {
-    width: 100%;
-    margin: 1vh;
-    left: 1vh;
-    max-height: 18vh;
-    max-width: 37vh;
-    margin-left: -1.8vh;
+    max-height: 20vh;
+    max-width: 100%;
 }
 body .pos-customer_facing_display .pos-payment_info .pos-payment_info_details .pos-odoo_logo_container {
     display: none;
