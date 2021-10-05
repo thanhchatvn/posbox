@@ -93,7 +93,7 @@ class SyncController(web.Home):
         values = driver.get_notifications(database, bus_id, user_id)
         return json.dumps({'state': 'succeed', 'values': values})
 
-    @http.route('/pos/passing/login', type='http', auth='none', cors='*')
+    @http.route('/pos/passing/login', type='json', auth='none', cors='*')
     def pos_login(self):
         return "ping"
 
