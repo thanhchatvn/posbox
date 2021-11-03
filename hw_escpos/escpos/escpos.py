@@ -749,9 +749,9 @@ class Escpos:
         self.extra_chars = 0
 
         def encode_char(char):
-            """ 
-            Encodes a single utf-8 character into a sequence of 
-            esc-pos code page change instructions and character declarations 
+            """
+            Encodes a single utf-8 character into a sequence of
+            esc-pos code page change instructions and character declarations
             """
             char_utf8 = char.encode('utf-8')
             encoded = ''
@@ -767,6 +767,7 @@ class Escpos:
                 'cp860': TXT_ENC_PC860,
                 'cp863': TXT_ENC_PC863,
                 'cp865': TXT_ENC_PC865,
+                'cp1251': TXT_ENC_WPC1251,  # win-1251 covers more cyrillic symbols than cp866
                 'cp866': TXT_ENC_PC866,
                 'cp862': TXT_ENC_PC862,
                 'cp720': TXT_ENC_PC720,
@@ -790,7 +791,7 @@ class Escpos:
                 try:
                     if encoding == 'katakana':  # Japanese characters
                         if jcconv:
-                            # try to convert japanese text to a half-katakanas 
+                            # try to convert japanese text to a half-katakanas
                             kata = jcconv.kata2half(jcconv.hira2kata(char_utf8))
                             if kata != char_utf8:
                                 self.extra_chars += len(kata.decode('utf-8')) - 1
@@ -805,10 +806,15 @@ class Escpos:
                         else:
                             raise ValueError()
                     else:
+                        # First 127 symbols are covered by cp437.
+                        # Extended range is covered by different encodings.
                         encoded = char.encode(encoding)
+                        if ord(encoded) <= 127:
+                            encoding = 'cp437'
                         break
 
-                except ValueError:  # the encoding failed, select another one and retry
+                except (UnicodeEncodeError, UnicodeWarning, TypeError, ValueError):
+                    # the encoding failed, select another one and retry
                     if encoding in remaining:
                         del remaining[encoding]
                     if len(remaining) >= 1:
@@ -834,7 +840,7 @@ class Escpos:
 
         txt = encode_str(txt)
 
-        # if the utf-8 -> codepage conversion inserted extra characters, 
+        # if the utf-8 -> codepage conversion inserted extra characters,
         # remove double spaces to try to restore the original string length
         # and prevent printing alignment issues
         while self.extra_chars > 0:
