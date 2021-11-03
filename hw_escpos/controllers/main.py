@@ -390,7 +390,7 @@ class EscposProxy(hw_proxy.Proxy):
         driver.push_task('cashbox')
 
     @http.route('/hw_proxy/open_cashbox_direct', type='json', auth='none', cors='*')
-    def open_cashbox(self):
+    def open_cashbox_direct(self):
         _logger.info('ESC/POS: OPEN CASHBOX-Direct')
         driver.push_task('cashbox-direct')
 

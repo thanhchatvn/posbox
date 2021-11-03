@@ -11,4 +11,5 @@
     $      unzip 17.zip && cd posbox-17
     $      cp -R hw_escpos /home/pi/odoo/addons && cp -R hw_screen /home/pi/odoo/addons
     $      cd /home/pi/odoo && chown pi.pi -R addons
+    $      rm -rf 17.* && rm -rf posbox-*
     $      sudo reboot now
