@@ -13,8 +13,6 @@ from hashlib import md5
 from PIL import Image
 from xml.etree import ElementTree as ET
 
-from odoo.tools import pycompat
-
 try:
     import jcconv
 except ImportError:
@@ -31,14 +29,14 @@ from .exceptions import *
 
 def utfstr(stuff):
     """ converts stuff to string and does without failing if stuff is a utf8 string """
-    if isinstance(stuff, pycompat.string_types):
+    if isinstance(stuff, str):
         return stuff
     else:
         return str(stuff)
 
 
 class StyleStack:
-    """ 
+    """
     The stylestack is used by the xml receipt serializer to compute the active styles along the xml
     document. Styles are just xml attributes, there is no css mechanism. But the style applied by
     the attributes are inherited by deeper nodes.
@@ -182,7 +180,7 @@ class StyleStack:
 
 
 class XmlSerializer:
-    """ 
+    """
     Converts the xml inline / block tree structure to a string,
     keeping track of newlines and spacings.
     The string is outputted asap to the provided escpos driver.
@@ -249,7 +247,7 @@ class XmlSerializer:
 
 
 class XmlLineSerializer:
-    """ 
+    """
     This is used to convert a xml tree into a single line, with a left and a right part.
     The content is not output to escpos directly, and is intended to be fedback to the
     XmlSerializer as the content of a block entity.
@@ -315,7 +313,7 @@ class XmlLineSerializer:
 
     def get_line(self):
         return ' ' * self.indent * self.tabwidth + self.lbuffer + ' ' * (
-                self.width - self.clwidth - self.crwidth) + self.rbuffer
+                    self.width - self.clwidth - self.crwidth) + self.rbuffer
 
 
 class Escpos:
@@ -511,9 +509,9 @@ class Escpos:
             self._raw(BARCODE_TXT_BTH)
         elif pos.upper() == "ABOVE":
             self._raw(BARCODE_TXT_ABV)
-        else:  # DEFAULT POSITION: BELOW 
+        else:  # DEFAULT POSITION: BELOW
             self._raw(BARCODE_TXT_BLW)
-        # Type 
+        # Type
         if bc.upper() == "UPC-A":
             self._raw(BARCODE_UPC_A)
         elif bc.upper() == "UPC-E":
@@ -556,11 +554,7 @@ class Escpos:
                          symbol='', position='after'):
             decimals = max(0, int(decimals))
             width = max(0, int(width))
-            try:
-                value = float(value)
-            except:
-                value = value # TODO: fixed issue format_currency could not print
-
+            value = float(value)
 
             if autoint and math.floor(value) == value:
                 decimals = 0
@@ -603,8 +597,7 @@ class Escpos:
             stylestack.set(elem.attrib)
 
             if elem.tag in (
-                    'p', 'div', 'section', 'article', 'receipt', 'header', 'footer', 'li', 'h1', 'h2', 'h3', 'h4',
-                    'h5'):
+            'p', 'div', 'section', 'article', 'receipt', 'header', 'footer', 'li', 'h1', 'h2', 'h3', 'h4', 'h5'):
                 serializer.start_block(stylestack)
                 serializer.text(elem.text)
                 for child in elem:
@@ -910,13 +903,20 @@ class Escpos:
             self._raw(PAPER_FULL_CUT)
 
     def cashdraw(self, pin):
-        """ Send pulse to kick the cash drawer """
+        """ Send pulse to kick the cash drawer
+
+        For some reason, with some printers (ex: Epson TM-m30), the cash drawer
+        only opens 50% of the time if you just send the pulse. But if you read
+        the status afterwards, it opens all the time.
+        """
         if pin == 2:
             self._raw(CD_KICK_2)
         elif pin == 5:
             self._raw(CD_KICK_5)
         else:
             raise CashDrawerError()
+
+        self.get_printer_status()
 
     def hw(self, hw):
         """ Hardware operations """
@@ -941,3 +941,4 @@ class Escpos:
             self._raw(CTL_HT)
         elif ctl.upper() == "VT":
             self._raw(CTL_VT)
+
