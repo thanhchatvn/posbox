@@ -17,11 +17,10 @@
 
 
 sudo su
-mount -o remount,rw / && cd /home/pi/odoo/addons
-rm -rf hw_escpos && cd ..
-rm -rf 21.04.* && rm -rf posbox-*
-wget https://github.com/thanhchatvn/posbox/archive/21.04.zip
-unzip 21.04.zip && cd posbox-21.04
-cp -R hw_escpos /home/pi/odoo/addons
-cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons
-sudo reboot now
+mount -o remount,rw /
+vim /home/pi/odoo/addons/point_of_sale/tools/posbox/configuration/odoo.conf
+change log_level = error to info
+cd /home/pi/odoo/addons && rm -rf hw_escpos && cd .. && rm -rf 21.04.* && rm -rf posbox-*
+wget https://github.com/thanhchatvn/posbox/archive/21.04.zip && unzip 21.04.zip && cd posbox-21.04
+cp -R hw_escpos /home/pi/odoo/addons && cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons && sudo reboot now
+

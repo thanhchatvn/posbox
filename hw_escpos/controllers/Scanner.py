@@ -15,7 +15,7 @@ from threading import Thread, Lock
 
 from odoo import http
 
-from odoo.addons.hw_drivers.controllers import hw_proxy
+from odoo.addons.hw_drivers.controllers import proxy
 
 _logger = logging.getLogger(__name__)
 
@@ -237,10 +237,13 @@ class Scanner(Thread):
 scanner_thread = None
 if evdev:
     scanner_thread = Scanner()
-    hw_proxy.drivers['scanner'] = scanner_thread
+    proxy.proxy_drivers['scanner'] = scanner_thread
 
 
-class ScannerDriver(hw_proxy.Proxy):
+class ScannerDriver(proxy.ProxyController):
+
     @http.route('/hw_proxy/get_scanner', type='json', auth='none', cors='*')
     def get_scanner(self):
-        return scanner_thread.get_barcode() if scanner_thread else None
+        values = scanner_thread.get_barcode() if scanner_thread else None
+        _logger.info('/hw_proxy/get_scanner return result %s' % values)
+        return values
