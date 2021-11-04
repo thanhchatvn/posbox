@@ -6,3 +6,4 @@ from . import PrinterNetworkController
 from . import SyncBetWeenSessions
 from . import SaveOrdersController
 from . import Scanner
+from . import Scale
