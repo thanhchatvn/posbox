@@ -368,10 +368,15 @@ if serial:
 class ScaleDriver(proxy.ProxyController):
     @http.route('/hw_proxy/get_scale_read/', type='json', auth='none', cors='*')
     def get_scale_read(self):
+        _logger.info('/hw_proxy/get_scale_read/')
         if scale_thread:
-            return {'weight': scale_thread.get_weight(),
-                    'unit': 'kg',
-                    'info': scale_thread.get_weight_info()}
+            scale_values = {
+                'weight': scale_thread.get_weight(),
+                'unit': 'kg',
+                'info': scale_thread.get_weight_info()
+            }
+            _logger.info('scale_values %s' % scale_values)
+            return scale_values
         return None
 
     @http.route('/hw_proxy/get_scale_zero/', type='json', auth='none', cors='*')
