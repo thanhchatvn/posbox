@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-
+import six
 """ ESC/POS Commands (Constants) """
-
-# Control characters
-ESC = '\x1b'
-
+NUL = b'\x00'
+ESC = b'\x1b'
+GS  = b'\x1d'
 # Feed control sequences
 CTL_LF    = '\x0a'             # Print and line feed
 CTL_FF    = '\x0c'             # Form feed
@@ -22,14 +21,13 @@ DLE_EOT_PAPER     = '\x10\x04\x04'
 HW_INIT   = '\x1b\x40'         # Clear data in buffer and reset modes
 HW_SELECT = '\x1b\x3d\x01'     # Printer select
 HW_RESET  = '\x1b\x3f\x0a\x00' # Reset printer hardware
-# Cash Drawer (ESC p <pin> <on time: 2*ms> <off time: 2*ms>)
-_CASH_DRAWER = lambda m, t1='', t2='': ESC + 'p' + m + chr(t1) + chr(t2)
-CD_KICK_2 = _CASH_DRAWER('\x00', 50, 50)  # Sends a pulse to pin 2 []
-CD_KICK_5 = _CASH_DRAWER('\x01', 50, 50)  # Sends a pulse to pin 5 []
+# Cash Drawer
+CD_KICK_2 = '\x1b\x70\x00'     # Sends a pulse to pin 2 []
+CD_KICK_5 = '\x1b\x70\x01'     # Sends a pulse to pin 5 []
 # Paper
 PAPER_FULL_CUT  = '\x1d\x56\x00' # Full cut paper
 PAPER_PART_CUT  = '\x1d\x56\x01' # Partial cut paper
-# Text format   
+# Text format
 TXT_NORMAL      = '\x1b\x21\x00' # Normal text
 TXT_2HEIGHT     = '\x1b\x21\x10' # Double height text
 TXT_2WIDTH      = '\x1b\x21\x20' # Double width text
@@ -56,11 +54,11 @@ TXT_ENC_PC860   = '\x1b\x74\x03' # PC860 Portuguese
 TXT_ENC_PC863   = '\x1b\x74\x04' # PC863 Canadian-French
 TXT_ENC_PC865   = '\x1b\x74\x05' # PC865 Nordic
 TXT_ENC_KANJI6  = '\x1b\x74\x06' # One-pass Kanji, Hiragana
-TXT_ENC_KANJI7  = '\x1b\x74\x07' # One-pass Kanji 
+TXT_ENC_KANJI7  = '\x1b\x74\x07' # One-pass Kanji
 TXT_ENC_KANJI8  = '\x1b\x74\x08' # One-pass Kanji
 TXT_ENC_PC851   = '\x1b\x74\x0b' # PC851 Greek
 TXT_ENC_PC853   = '\x1b\x74\x0c' # PC853 Turkish
-TXT_ENC_PC857   = '\x1b\x74\x0d' # PC857 Turkish 
+TXT_ENC_PC857   = '\x1b\x74\x0d' # PC857 Turkish
 TXT_ENC_PC737   = '\x1b\x74\x0e' # PC737 Greek
 TXT_ENC_8859_7  = '\x1b\x74\x0f' # ISO8859-7 Greek
 TXT_ENC_WPC1252 = '\x1b\x74\x10' # WPC1252
@@ -74,7 +72,7 @@ TXT_ENC_TCVN3   = '\x1b\x74\x1e' # TCVN3 Vietnamese
 TXT_ENC_TCVN3B  = '\x1b\x74\x1f' # TCVN3 Vietnamese
 TXT_ENC_PC720   = '\x1b\x74\x20' # PC720 Arabic
 TXT_ENC_WPC775  = '\x1b\x74\x21' # WPC775 Baltic Rim
-TXT_ENC_PC855   = '\x1b\x74\x22' # PC855 Cyrillic 
+TXT_ENC_PC855   = '\x1b\x74\x22' # PC855 Cyrillic
 TXT_ENC_PC861   = '\x1b\x74\x23' # PC861 Icelandic
 TXT_ENC_PC862   = '\x1b\x74\x24' # PC862 Hebrew
 TXT_ENC_PC864   = '\x1b\x74\x25' # PC864 Arabic
@@ -168,23 +166,71 @@ TXT_ENC_KATAKANA_MAP = {
 }
 
 # Barcod format
-BARCODE_TXT_OFF = '\x1d\x48\x00' # HRI barcode chars OFF
-BARCODE_TXT_ABV = '\x1d\x48\x01' # HRI barcode chars above
-BARCODE_TXT_BLW = '\x1d\x48\x02' # HRI barcode chars below
-BARCODE_TXT_BTH = '\x1d\x48\x03' # HRI barcode chars both above and below
-BARCODE_FONT_A  = '\x1d\x66\x00' # Font type A for HRI barcode chars
-BARCODE_FONT_B  = '\x1d\x66\x01' # Font type B for HRI barcode chars
-BARCODE_HEIGHT  = '\x1d\x68\x64' # Barcode Height [1-255]
-BARCODE_WIDTH   = '\x1d\x77\x03' # Barcode Width  [2-6]
-BARCODE_UPC_A   = '\x1d\x6b\x00' # Barcode type UPC-A
-BARCODE_UPC_E   = '\x1d\x6b\x01' # Barcode type UPC-E
-BARCODE_EAN13   = '\x1d\x6b\x02' # Barcode type EAN13
-BARCODE_EAN8    = '\x1d\x6b\x03' # Barcode type EAN8
-BARCODE_CODE39  = '\x1d\x6b\x04' # Barcode type CODE39
-BARCODE_ITF     = '\x1d\x6b\x05' # Barcode type ITF
-BARCODE_NW7     = '\x1d\x6b\x06' # Barcode type NW7
-# Image format  
+
+
+
+
+# Barcode format
+_SET_BARCODE_TXT_POS = lambda n: GS + b'H' + n
+BARCODE_TXT_OFF = _SET_BARCODE_TXT_POS(b'\x00')  # HRI barcode chars OFF
+BARCODE_TXT_ABV = _SET_BARCODE_TXT_POS(b'\x01')  # HRI barcode chars above
+BARCODE_TXT_BLW = _SET_BARCODE_TXT_POS(b'\x02')  # HRI barcode chars below
+BARCODE_TXT_BTH = _SET_BARCODE_TXT_POS(b'\x03')  # HRI both above and below
+
+_SET_HRI_FONT = lambda n: GS + b'f' + n
+BARCODE_FONT_A = _SET_HRI_FONT(b'\x00')  # Font type A for HRI barcode chars
+BARCODE_FONT_B = _SET_HRI_FONT(b'\x01')  # Font type B for HRI barcode chars
+
+BARCODE_HEIGHT = GS + b'h'  # Barcode Height [1-255]
+BARCODE_WIDTH  = GS + b'w'  # Barcode Width  [2-6]
+
+# NOTE: This isn't actually an ESC/POS command. It's the common prefix to the
+#      two "print bar code" commands:
+#      -  Type A: "GS k <type as integer> <data> NUL"
+#      -  TYPE B: "GS k <type as letter> <data length> <data>"
+#      The latter command supports more barcode types
+_SET_BARCODE_TYPE = lambda m: GS + b'k' + six.int2byte(m)
+
+# Barcodes for printing function type A
+BARCODE_TYPE_A = {
+    'UPC-A':   _SET_BARCODE_TYPE(0),
+    'UPC-E':   _SET_BARCODE_TYPE(1),
+    'EAN13':   _SET_BARCODE_TYPE(2),
+    'EAN8':    _SET_BARCODE_TYPE(3),
+    'CODE39':  _SET_BARCODE_TYPE(4),
+    'ITF':     _SET_BARCODE_TYPE(5),
+    'NW7':     _SET_BARCODE_TYPE(6),
+    'CODABAR': _SET_BARCODE_TYPE(6),  # Same as NW7
+}
+
+# Barcodes for printing function type B
+# The first 8 are the same barcodes as type A
+BARCODE_TYPE_B = {
+    'UPC-A':                       _SET_BARCODE_TYPE(65),
+    'UPC-E':                       _SET_BARCODE_TYPE(66),
+    'EAN13':                       _SET_BARCODE_TYPE(67),
+    'EAN8':                        _SET_BARCODE_TYPE(68),
+    'CODE39':                      _SET_BARCODE_TYPE(69),
+    'ITF':                         _SET_BARCODE_TYPE(70),
+    'NW7':                         _SET_BARCODE_TYPE(71),
+    'CODABAR':                     _SET_BARCODE_TYPE(71),  # Same as NW7
+    'CODE93':                      _SET_BARCODE_TYPE(72),
+    'CODE128':                     _SET_BARCODE_TYPE(73),
+    'GS1-128':                     _SET_BARCODE_TYPE(74),
+    'GS1 DATABAR OMNIDIRECTIONAL': _SET_BARCODE_TYPE(75),
+    'GS1 DATABAR TRUNCATED':       _SET_BARCODE_TYPE(76),
+    'GS1 DATABAR LIMITED':         _SET_BARCODE_TYPE(77),
+    'GS1 DATABAR EXPANDED':        _SET_BARCODE_TYPE(78),
+}
+
+BARCODE_TYPES = {
+    'A': BARCODE_TYPE_A,
+    'B': BARCODE_TYPE_B,
+}
+
+
+# Image format
 S_RASTER_N      = '\x1d\x76\x30\x00' # Set raster image normal size
 S_RASTER_2W     = '\x1d\x76\x30\x01' # Set raster image double width
 S_RASTER_2H     = '\x1d\x76\x30\x02' # Set raster image double height
-S_RASTER_Q      = '\x1d\x76\x30\x03' # Set raster image quadruple
+S_RASTER_Q = '\x1d\x76\x30\x03' # Set raster image quadruple
