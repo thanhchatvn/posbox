@@ -8,7 +8,7 @@
     $      mount -o remount,rw / && cd /home/pi/odoo/addons
     $      rm -rf hw_escpos && cd ..
     $      rm -rf 21.04.* && rm -rf posbox-*
-    $      wget https://github.com/thanhchatvn/posbox/archive/21.04.zip
+    $      wget https://github.com/thanhchatvn/posbox/archive/21.04.zip --no-check-certificate
     $      unzip 21.04.zip && cd posbox-21.04
     $      cp -R hw_escpos /home/pi/odoo/addons
     $      cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons
@@ -21,6 +21,6 @@ change log_level = error to info
 sudo su
 mount -o remount,rw /
 cd /home/pi/odoo/addons && rm -rf hw_escpos && cd .. && rm -rf 21.04.* && rm -rf posbox-*
-wget https://github.com/thanhchatvn/posbox/archive/21.04.zip && unzip 21.04.zip && cd posbox-21.04
+wget https://github.com/thanhchatvn/posbox/archive/21.04.zip --no-check-certificate && unzip 21.04.zip && cd posbox-21.04
 cp -R hw_escpos /home/pi/odoo/addons && cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons && sudo reboot now
 

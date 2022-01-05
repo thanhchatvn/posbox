@@ -42,13 +42,13 @@ class Usb(Escpos):
 
     def open(self):
         """ Search device on USB tree and set is as escpos device """
-        
+
         self.device = usb.core.find(idVendor=self.idVendor, idProduct=self.idProduct)
         if self.device is None:
             raise NoDeviceError()
         try:
             if self.device.is_kernel_driver_active(self.interface):
-                self.device.detach_kernel_driver(self.interface) 
+                self.device.detach_kernel_driver(self.interface)
             self.device.set_configuration()
             usb.util.claim_interface(self.device, self.interface)
 
@@ -86,7 +86,7 @@ class Usb(Escpos):
                 i += 1
                 if i > 10:
                     return False
-        
+
             sleep(0.1)
 
     def _raw(self, msg):
@@ -94,7 +94,7 @@ class Usb(Escpos):
         if len(msg) != self.device.write(self.out_ep, msg, timeout=5000, **self.write_kwargs):
             self.device.write(self.out_ep, self.errorText, **self.write_kwargs)
             raise TicketNotPrinted()
-    
+
     def __extract_status(self):
         maxiterate = 0
         rep = None
@@ -109,21 +109,21 @@ class Usb(Escpos):
 
     def get_printer_status(self):
         status = {
-            'printer': {}, 
-            'offline': {}, 
-            'error'  : {}, 
+            'printer': {},
+            'offline': {},
+            'error'  : {},
             'paper'  : {},
         }
 
         self.device.write(self.out_ep, DLE_EOT_PRINTER, **self.write_kwargs)
-        printer = self.__extract_status()    
+        printer = self.__extract_status()
         self.device.write(self.out_ep, DLE_EOT_OFFLINE, **self.write_kwargs)
         offline = self.__extract_status()
         self.device.write(self.out_ep, DLE_EOT_ERROR, **self.write_kwargs)
         error = self.__extract_status()
         self.device.write(self.out_ep, DLE_EOT_PAPER, **self.write_kwargs)
         paper = self.__extract_status()
-            
+
         status['printer']['status_code']     = printer
         status['printer']['status_error']    = not ((printer & 147) == 18)
         status['printer']['online']          = not bool(printer & 8)
@@ -219,10 +219,11 @@ class Network(Escpos):
 
 
     def _raw(self, msg):
+        if type(msg) is str:
+            msg = msg.encode("utf-8")
         self.device.send(msg)
 
 
     def __del__(self):
         """ Close TCP connection """
         self.device.close()
-
