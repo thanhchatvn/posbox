@@ -1,3 +1,4 @@
+/* global display_identifier */
     $(function() {
         "use strict";
         // mergedHead will be turned to true the first time we receive something from a new host
@@ -41,9 +42,11 @@
 
                         // Here we execute the code coming from the pos, apparently $.parseHTML() executes scripts right away,
                         // Since we modify the dom afterwards, the script might not have any effect
+                        /* eslint-disable no-undef */
                         if (typeof foreign_js !== 'undefined' && $.isFunction(foreign_js)) {
                             foreign_js();
                         }
+                        /* eslint-enable no-undef */
                     }
                     longpolling();
                 },
@@ -57,32 +60,4 @@
         };
 
         longpolling();
-
-        function retail_longpolling() {
-            $.ajax({
-                type: 'POST',
-                url: window.location.origin + '/pos/get-login-chef',
-                dataType: 'json',
-                beforeSend: function (xhr) {
-                    xhr.setRequestHeader('Content-Type', 'application/json');
-                },
-                data: JSON.stringify({jsonrpc: '2.0'}),
-                success: function (data) {
-                    if (typeof data.result.link == 'undefined') {
-                        setTimeout(retail_longpolling, 5000);
-                    } else {
-                        var pos_link = data.result['link'] + '/web/login?database=' + data.result['database'] + '&login=' + data.result['login'] + '&password=' + data.result['password'] + '&iot_pos=true';
-                        window.open(pos_link, '_self');
-                    }
-                },
-                error: function (jqXHR, status, err) {
-                    if (!stop_longpolling) {
-                        setTimeout(retail_longpolling, 5000);
-                    }
-                },
-                timeout: 30000,
-            });
-        };
-
-        retail_longpolling();
     });
