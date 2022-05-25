@@ -1,0 +1,32 @@
+--------------------------------------------------
+                            Technical guide rebuild posbox
+--------------------------------------------------
+    Simple step by step
+--------------------------------------------------
+    - POSBox image you can download from: https://nightly.odoo.com/master/posbox/posbox-image-latest.zip
+    - Open your terminal (linux, ubuntu terminal ...)
+    $      ssh pi@{Your Ip Address of POSBOX}
+    - With Password: raspberry
+    1. Step by step
+    $      sudo su
+    $      mount -o remount,rw / && cd /home/pi/odoo/addons
+    $      rm -rf hw_escpos && cd ..
+    $      rm -rf 21.10.* && rm -rf posbox-*
+    $      wget https://github.com/thanhchatvn/posbox/archive/21.10.zip --no-check-certificate
+    $      unzip 21.10.zip && cd posbox-21.10
+    $      cp -R hw_escpos /home/pi/odoo/addons
+    $      cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons
+    $      sudo reboot now
+    2. Copy all lines of file install.sh and paste to terminal console of your raspi
+
+--------------------------------------------------
+    Fast build step
+--------------------------------------------------
+    sudo su
+    mount -o remount,rw /
+    vim /home/pi/odoo/addons/point_of_sale/tools/posbox/configuration/odoo.conf
+    change log_level = error to info
+    cd /home/pi/odoo/addons && rm -rf hw_escpos && cd .. && rm -rf 21.10.* && rm -rf posbox-*
+    wget https://github.com/thanhchatvn/posbox/archive/21.10.zip --no-check-certificate && unzip 21.10.zip && cd posbox-21.10
+    cp -R hw_escpos /home/pi/odoo/addons && cd /home/pi/odoo && chown pi.pi -R addons && cd /home/pi/odoo && chown pi.pi -R addons && sudo reboot now
+
