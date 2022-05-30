@@ -3,8 +3,9 @@
 --------------------------------------------------
     Simple step by step
 --------------------------------------------------
-    - POSBox image you can download from: https://nightly.odoo.com/master/posbox/posbox-image-latest.zip
+    - POSBox image you can download from: https://nightly.odoo.com/master/posbox/iotbox/iotboxv21_10.zip
     - Open your terminal (linux, ubuntu terminal ...)
+    - Find address Ip of POS/IOT box installed 
     $      ssh pi@{Your Ip Address of POSBOX}
     - With Password: raspberry
     1. Step by step
