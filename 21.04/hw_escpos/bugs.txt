@@ -1,0 +1,37 @@
+Server application error
+ Error code: 200
+ Error message: Odoo Server Error
+ Error data message:
+ a bytes-like object is required, not 'str'
+ Error data debug:
+ Traceback (most recent call last):
+  File "/home/pi/odoo/odoo/http.py", line 1441, in _dispatch_nodb
+    result = request.dispatch()
+  File "/home/pi/odoo/odoo/http.py", line 683, in dispatch
+    result = self._call_function(**self.params)
+  File "/home/pi/odoo/odoo/http.py", line 360, in _call_function
+    return self.endpoint(*args, **kwargs)
+  File "/home/pi/odoo/odoo/http.py", line 912, in __call__
+    return self.method(*args, **kw)
+  File "/home/pi/odoo/odoo/http.py", line 531, in response_wrap
+    response = f(*args, **kw)
+  File "/home/pi/odoo/addons/hw_escpos/controllers/PrinterNetworkController.py", line 46, in epson_printing
+    result = network_driver.print_network(receipt, proxy)
+  File "/home/pi/odoo/addons/hw_escpos/controllers/PrinterNetworkController.py", line 31, in print_network
+    printer_object.receipt(receipt)
+  File "/home/pi/odoo/addons/hw_escpos/escpos/escpos.py", line 715, in receipt
+    self.cut()
+  File "/home/pi/odoo/addons/hw_escpos/escpos/escpos.py", line 889, in cut
+    self._raw("\n\n\n\n\n\n")
+  File "/home/pi/odoo/addons/hw_escpos/escpos/printer.py", line 222, in _raw
+    self.device.send(msg)
+Exception
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/pi/odoo/odoo/http.py", line 639, in _handle_exception
+    return super(JsonRequest, self)._handle_exception(exception)
+  File "/home/pi/odoo/odoo/http.py", line 315, in _handle_exception
+    raise exception.with_traceback(None) from new_cause
+TypeError: a bytes-like object is required, not 'str'
